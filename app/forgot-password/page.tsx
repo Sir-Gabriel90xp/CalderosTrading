@@ -1,0 +1,1 @@
+import {resetPassword} from '@/app/actions';export default function Forgot(){return <main className="shell"><div className="auth-card"><h1>Recuperar acceso</h1><p>Te enviaremos un enlace a tu correo.</p><form action={resetPassword}><label>Correo<input type="email" name="email" required/></label><button>Enviar enlace</button></form></div></main>}
