@@ -24,10 +24,16 @@ export async function resetPassword(form:FormData){
 }
 export async function signOut(){const db=await serverDb();await db.auth.signOut();redirect('/')}
 export async function createCourse(form:FormData){
-  const {db,profile}=await staff();if(!['super_admin','admin','instructor'].includes(profile.role))throw new Error('Sin permiso');
+    const {db,profile}=await staff();
+    if(!profile || !['super_admin','admin','instructor'].includes(profile.role)) redirect('/admin?error=sin-permiso');
   const schema=z.object({title:z.string().min(3).max(120),slug:z.string().regex(/^[a-z0-9-]+$/),description:z.string().min(10).max(3000),price:z.number().min(0),level:z.string().max(30),paypal_usd_price:z.number().positive().nullable()});
   const p=schema.parse({title:val(form,'title'),slug:val(form,'slug'),description:val(form,'description'),price:Number(val(form,'price')),level:val(form,'level'),paypal_usd_price:val(form,'paypal_usd_price')?Number(val(form,'paypal_usd_price')):null});
-  const {error}=await db.from('courses').insert({...p,published:form.get('published')==='on',instructor_id:profile.id});if(error)throw new Error(error.message);revalidatePath('/admin');revalidatePath('/cursos');
+    const {error}=await db.from('courses').insert({...p,published:form.get('published')==='on',instructor_id:profile.id});
+    if(error){
+      const message=error.code==='23505'?'slug-duplicado':error.code==='42501'?'sin-permiso':'error-curso';
+      redirect(`/admin?error=${message}`);
+    }
+    revalidatePath('/admin');revalidatePath('/cursos');
 }
 export async function createModule(form:FormData){
   const {db,profile}=await staff();if(!['super_admin','admin','instructor'].includes(profile.role))throw new Error('Sin permiso');
