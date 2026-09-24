@@ -1,7 +1,8 @@
+import {supabaseConfigured} from '@/lib/config';
 import {redirect} from 'next/navigation';import Link from 'next/link';import {viewer} from '@/lib/supabase';import {completeLesson,sendMessage,signOut} from '@/app/actions';import TransferForm from '@/components/TransferForm';import PayPalButton from '@/components/PayPalButton';
 export const dynamic='force-dynamic';
 export default async function Dashboard({searchParams}:{searchParams:Promise<{course?:string}>}){
- const {db,user,profile}=await viewer();if(!user)redirect('/login?next=/dashboard');const params=await searchParams;
+ if(!supabaseConfigured())redirect('/login');const {db,user,profile}=await viewer();if(!user)redirect('/login?next=/dashboard');const params=await searchParams;
  const [{data:enrollments},{data:pending},{data:support},{data:messages},{data:settings}]=await Promise.all([
  db.from('enrollments').select('id,course_id,status,starts_at,expires_at,courses(id,title,slug,description)').eq('user_id',user.sub),
  db.from('bank_transfers').select('id,course_id,status,created_at').eq('user_id',user.sub).order('created_at',{ascending:false}),

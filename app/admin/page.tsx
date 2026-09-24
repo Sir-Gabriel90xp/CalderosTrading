@@ -1,6 +1,7 @@
+import {supabaseConfigured} from '@/lib/config';
 import {redirect} from 'next/navigation';import {viewer} from '@/lib/supabase';import {createCourse,createModule,createLesson,grantAccess,reviewTransfer,saveSettings,sendMessage} from '@/app/actions';
 export const dynamic='force-dynamic';
-export default async function Admin(){const {db,user,profile}=await viewer();if(!user)redirect('/login?next=/admin');if(!['super_admin','admin','support','instructor'].includes(profile?.role))redirect('/dashboard');
+export default async function Admin(){if(!supabaseConfigured())redirect('/login');const {db,user,profile}=await viewer();if(!user)redirect('/login?next=/admin');if(!['super_admin','admin','support','instructor'].includes(profile?.role))redirect('/dashboard');
  const canEdit=['super_admin','admin','instructor'].includes(profile?.role),canManage=['super_admin','admin'].includes(profile?.role);
  const [{data:users},{data:courses},{data:modules},{data:transfers},{data:settings},{data:messages},{data:enrollments}]=await Promise.all([
  db.from('profiles').select('id,email,full_name,role,created_at').order('created_at',{ascending:false}).limit(100),db.from('courses').select('id,title,slug,price,published').order('created_at',{ascending:false}),db.from('modules').select('id,course_id,title,position').order('position'),db.from('bank_transfers').select('id,user_id,course_id,bank,reference,receipt_path,amount,status,created_at').order('created_at',{ascending:false}).limit(100),db.from('settings').select('key,value'),db.from('messages').select('id,body,sender_id,recipient_id,created_at').order('created_at',{ascending:false}).limit(30),db.from('enrollments').select('user_id,course_id,expires_at,status').limit(200)
