@@ -71,10 +71,15 @@ export async function createModule(form:FormData){
   const {error}=await db.from('modules').insert({course_id:courseId,title,position:Number(val(form,'position'))||0});if(error)throw new Error(error.message);revalidatePath('/admin');
 }
 export async function createLesson(form:FormData){
-  const {db,profile}=await staff();if(!['super_admin','admin','instructor'].includes(profile.role))throw new Error('Sin permiso');
-  const module_id=z.uuid().parse(val(form,'module_id'));const title=z.string().min(2).max(120).parse(val(form,'title'));
-  const url=val(form,'video_url');if(url && !/^https:\/\/(player\.vimeo\.com|iframe\.mux\.com|iframe\.videodelivery\.net|video\.bunnycdn\.com)\//.test(url))throw new Error('URL de video no admitida');
-  const {error}=await db.from('lessons').insert({module_id,title,video_url:url||null,body:val(form,'body'),position:Number(val(form,'position'))||0,published:form.get('published')==='on'});if(error)throw new Error(error.message);revalidatePath('/admin');
+  const {db,profile}=await staff();
+  if(!profile || !['super_admin','admin','instructor'].includes(profile.role)) redirect('/admin?error=sin-permiso');
+  const module_id=z.uuid().safeParse(val(form,'module_id'));
+  const title=z.string().min(2).max(120).safeParse(val(form,'title'));
+  const url=val(form,'video_url');
+  if(!module_id.success || !title.success || (url && !/^https:\/\/(player\.vimeo\.com|iframe\.mux\.com|iframe\.videodelivery\.net|video\.bunnycdn\.com)\//.test(url))) redirect('/admin?error=leccion-datos');
+  const {error}=await db.from('lessons').insert({module_id:module_id.data,title:title.data,video_url:url||null,body:val(form,'body'),position:Number(val(form,'position'))||0,published:form.get('published')==='on'});
+  if(error) redirect(`/admin?error=${error.code==='42501'?'sin-permiso':'leccion-error'}`);
+  revalidatePath('/admin');revalidatePath('/dashboard');revalidatePath('/cursos');revalidatePath('/curso/[slug]','page');
 }
 export async function grantAccess(form:FormData){
   const {db,profile}=await staff();if(!['super_admin','admin'].includes(profile.role))throw new Error('Sin permiso');

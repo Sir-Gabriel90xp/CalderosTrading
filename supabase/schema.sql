@@ -101,8 +101,10 @@ alter table public.payments enable row level security;
 
 create policy profiles_read on public.profiles for select to authenticated using(id=(select auth.uid()) or private.has_role(array['super_admin','admin','instructor','support']));
 create policy courses_read on public.courses for select to anon,authenticated using(published or private.has_role(array['super_admin','admin','instructor','support']));
+create policy courses_enrolled_read on public.courses for select to authenticated using(private.has_access(id));
 create policy courses_write on public.courses for all to authenticated using(private.has_role(array['super_admin','admin','instructor'])) with check(private.has_role(array['super_admin','admin','instructor']));
 create policy modules_read on public.modules for select to anon,authenticated using(exists(select 1 from public.courses c where c.id=course_id and (c.published or private.has_role(array['super_admin','admin','instructor','support']))));
+create policy modules_enrolled_read on public.modules for select to authenticated using(private.has_access(course_id));
 create policy modules_write on public.modules for all to authenticated using(private.has_role(array['super_admin','admin','instructor'])) with check(private.has_role(array['super_admin','admin','instructor']));
 create policy lessons_read on public.lessons for select to authenticated using(
  private.has_role(array['super_admin','admin','instructor','support']) or
