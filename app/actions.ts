@@ -35,6 +35,36 @@ export async function createCourse(form:FormData){
     }
     revalidatePath('/admin');revalidatePath('/cursos');
 }
+export async function updateCourse(form:FormData){
+  const {db,profile}=await staff();
+  if(!profile || !['super_admin','admin'].includes(profile.role)) redirect('/admin/cursos?error=sin-permiso');
+  const courseId=z.uuid().parse(val(form,'course_id'));
+  const schema=z.object({title:z.string().min(3).max(120),slug:z.string().regex(/^[a-z0-9-]+$/),description:z.string().min(10).max(3000),price:z.number().min(0),level:z.string().max(30),paypal_usd_price:z.number().positive().nullable()});
+  const values=schema.parse({title:val(form,'title'),slug:val(form,'slug'),description:val(form,'description'),price:Number(val(form,'price')),level:val(form,'level'),paypal_usd_price:val(form,'paypal_usd_price')?Number(val(form,'paypal_usd_price')):null});
+  const cover=form.get('cover');
+  let cover_url:string|undefined;
+  if(cover instanceof File && cover.size){
+    if(cover.size>5*1024*1024 || !['image/jpeg','image/png','image/webp'].includes(cover.type)) redirect('/admin/cursos?error=portada-invalida');
+    const path=`${courseId}/${crypto.randomUUID()}-${cover.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;
+    const {error:uploadError}=await db.storage.from('course-covers').upload(path,cover,{upsert:false,contentType:cover.type,cacheControl:'3600'});
+    if(uploadError) redirect('/admin/cursos?error=portada-subida');
+    cover_url=db.storage.from('course-covers').getPublicUrl(path).data.publicUrl;
+  }
+  const {error}=await db.from('courses').update({...values,published:form.get('published')==='on',...(cover_url?{cover_url}: {})}).eq('id',courseId);
+  if(error){
+    const message=error.code==='23505'?'slug-duplicado':error.code==='42501'?'sin-permiso':'error-curso';
+    redirect(`/admin/cursos?error=${message}`);
+  }
+  revalidatePath('/admin');revalidatePath('/');revalidatePath('/cursos');
+}
+export async function deleteCourse(form:FormData){
+  const {db,profile}=await staff();
+  if(!profile || !['super_admin','admin'].includes(profile.role)) redirect('/admin/cursos?error=sin-permiso');
+  const courseId=z.uuid().parse(val(form,'course_id'));
+  const {error}=await db.from('courses').delete().eq('id',courseId);
+  if(error) redirect(`/admin/cursos?error=${error.code==='23503'?'curso-con-datos':'error-borrar-curso'}`);
+  revalidatePath('/admin');revalidatePath('/');revalidatePath('/cursos');
+}
 export async function createModule(form:FormData){
   const {db,profile}=await staff();if(!['super_admin','admin','instructor'].includes(profile.role))throw new Error('Sin permiso');
   const courseId=z.uuid().parse(val(form,'course_id'));const title=z.string().min(2).max(120).parse(val(form,'title'));

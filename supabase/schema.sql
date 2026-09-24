@@ -126,6 +126,12 @@ create policy audit_read on public.audit_logs for select to authenticated using(
 create policy payments_read on public.payments for select to authenticated using(user_id=(select auth.uid()) or private.has_role(array['super_admin','admin','support']));
 
 -- Bucket privado: la ruta siempre comienza con el ID del usuario que sube.
+-- Bucket público para portadas administradas desde /admin/cursos.
+insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types) values('course-covers','course-covers',true,5242880,array['image/jpeg','image/png','image/webp']) on conflict(id) do nothing;
+create policy course_cover_upload on storage.objects for insert to authenticated with check(bucket_id='course-covers' and private.has_role(array['super_admin','admin']));
+create policy course_cover_update on storage.objects for update to authenticated using(bucket_id='course-covers' and private.has_role(array['super_admin','admin'])) with check(bucket_id='course-covers' and private.has_role(array['super_admin','admin']));
+create policy course_cover_delete on storage.objects for delete to authenticated using(bucket_id='course-covers' and private.has_role(array['super_admin','admin']));
+
 insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types) values('receipts','receipts',false,5242880,array['image/jpeg','image/png','application/pdf']) on conflict(id) do nothing;
 create policy receipt_upload on storage.objects for insert to authenticated with check(bucket_id='receipts' and (storage.foldername(name))[1]=(select auth.uid())::text);
 create policy receipt_read on storage.objects for select to authenticated using(bucket_id='receipts' and ((storage.foldername(name))[1]=(select auth.uid())::text or private.has_role(array['super_admin','admin','support'])));
