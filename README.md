@@ -45,7 +45,7 @@ Los botones de PayPal y transferencia solo operan después de crear y configurar
 
 ## Deploy en Vercel
 
-Importar este proyecto como repositorio Next.js en Vercel, establecer las variables de entorno anteriores y configurar `NEXT_PUBLIC_SITE_URL` con el dominio final. Añadir ese dominio a las URL permitidas de Supabase Auth y verificar el retorno PayPal en sandbox. Ejecutar `npm run build` antes del despliegue. El logo original está en `public/logo.jpeg`.
+Importar este proyecto como repositorio Next.js en Vercel. En **Project → Settings → Environment Variables**, añadir al entorno **Production** `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` con los valores del proyecto Supabase. Añadir `NEXT_PUBLIC_SITE_URL=https://calderostrading.vercel.app`. Las variables del archivo `.env.local` de tu PC no llegan a Vercel: tras guardarlas en Vercel se necesita un nuevo despliegue para que también queden incluidas en el JavaScript del navegador. Para activar PayPal, añadir sus credenciales y `SUPABASE_SECRET_KEY` por separado; nunca poner esta última bajo `NEXT_PUBLIC_`. Hasta que se configure Supabase, la portada se mostrará, pero el registro y los cursos privados seguirán no disponibles. Añadir ese dominio a las URL permitidas de Supabase Auth y verificar el retorno PayPal en sandbox. Ejecutar `npm run build` antes del despliegue. El logo original está en `public/logo.jpeg`.
 
 ## Seguridad
 
