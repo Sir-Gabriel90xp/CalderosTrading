@@ -6,7 +6,7 @@ import CourseManager from '@/components/CourseManager';
 
 export const dynamic = 'force-dynamic';
 
-type SearchParams = Promise<{ error?: string }>;
+type SearchParams = Promise<{ error?: string; success?: string }>;
 
 export default async function AdminCourses({ searchParams }: { searchParams: SearchParams }) {
   const { db, user, profile } = await viewer();
@@ -18,7 +18,8 @@ export default async function AdminCourses({ searchParams }: { searchParams: Sea
     db.from('modules').select('id,course_id,title,position').order('position'),
     db.from('lessons').select('id,module_id,title,body,video_url,position,published').order('position')
   ]);
-  const error = (await searchParams).error;
+  const params = await searchParams;
+  const error = params.error;
   const message = error === 'slug-duplicado'
     ? 'Ese slug ya existe. Usa uno diferente.'
     : error === 'portada-invalida'
@@ -32,6 +33,15 @@ export default async function AdminCourses({ searchParams }: { searchParams: Sea
             : error === 'error-curso'
               ? 'Supabase no pudo guardar el curso.'
               : null;
+  const success = params.success === 'curso-creado' ? 'El curso se creó correctamente.'
+    : params.success === 'curso-actualizado' ? 'Los cambios del curso se guardaron.'
+      : params.success === 'curso-eliminado' ? 'El curso se eliminó.'
+        : params.success === 'modulo-creado' ? 'El módulo se creó correctamente.'
+          : params.success === 'modulo-actualizado' ? 'Los cambios del módulo se guardaron.'
+            : params.success === 'modulo-eliminado' ? 'El módulo se eliminó.'
+              : params.success === 'leccion-creada' ? 'La lección se creó correctamente.'
+                : params.success === 'leccion-actualizada' ? 'Los cambios de la lección se guardaron.'
+                  : params.success === 'leccion-eliminada' ? 'La lección se eliminó.' : null;
 
   return (
     <main className="shell">
@@ -42,9 +52,11 @@ export default async function AdminCourses({ searchParams }: { searchParams: Sea
         <p>Edita la información, sube portadas o elimina cursos.</p>
       </div>
       {message && <div className="notice warning" role="alert">{message}</div>}
+      {success && <div className="notice" role="status">{success}</div>}
       <section className="card" style={{ marginBottom: 18 }}>
         <h2>Nuevo curso</h2>
         <form action={createCourse} className="cols">
+          <input type="hidden" name="return_to" value="/admin/cursos" />
           <label>Título<input name="title" required minLength={3} maxLength={120} /></label>
           <label>Slug<input name="slug" pattern="[a-z0-9-]+" required /></label>
           <label>Descripción<textarea name="description" minLength={10} maxLength={3000} required /></label>
@@ -55,7 +67,7 @@ export default async function AdminCourses({ searchParams }: { searchParams: Sea
           <button type="submit">Crear curso</button>
         </form>
       </section>
-      <CourseManager courses={(courses || []) as never[]} canManage modules={(modules || []) as never[]} lessons={(lessons || []) as never[]} />
+      <CourseManager courses={(courses || []) as never[]} canManage modules={(modules || []) as never[]} lessons={(lessons || []) as never[]} returnTo="/admin/cursos" />
     </main>
   );
 }
