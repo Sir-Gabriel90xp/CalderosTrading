@@ -74,7 +74,13 @@ export default function CommunityProfileEditor({
   const [certificates, setCertificates] = useState(initialCertificates);
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState('');
+  const [notice, setNoticeText] = useState('');
+  const [noticeError, setNoticeError] = useState(false);
+
+  function setNotice(message: string) {
+    setNoticeText(message);
+    setNoticeError(/^(no se pudo|escribe|revisa|usa|adjunta|selecciona)/i.test(message));
+  }
 
   async function uploadAvatar(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -106,8 +112,10 @@ export default function CommunityProfileEditor({
       await db.storage.from('profile-avatars').remove([profile.avatar_path]);
     }
     const { data } = await db.storage.from('profile-avatars').createSignedUrl(path, 3600);
-    setAvatarUrl(data?.signedUrl || null);
+    const nextAvatarUrl = data?.signedUrl || null;
+    setAvatarUrl(nextAvatarUrl);
     setProfile((current) => ({ ...current, avatar_path: path }));
+    window.dispatchEvent(new CustomEvent('calderos:avatar-updated', { detail: { avatarUrl: nextAvatarUrl, displayName: profile.display_name } }));
     setNotice('Foto de perfil actualizada.');
     setBusy(false);
     event.target.value = '';
@@ -159,6 +167,7 @@ export default function CommunityProfileEditor({
       return;
     }
     setProfile(next);
+    window.dispatchEvent(new CustomEvent('calderos:avatar-updated', { detail: { avatarUrl, displayName: next.display_name } }));
     setNotice(isPublic ? 'Perfil guardado y visible para la comunidad.' : 'Perfil guardado y privado.');
   }
 
@@ -273,7 +282,7 @@ export default function CommunityProfileEditor({
           <div className="certificate-own-actions">{certificate.signed_url && <a className="button ghost" href={certificate.signed_url} target="_blank" rel="noreferrer">Ver archivo</a>}<button type="button" className="ghost" disabled={busy} onClick={() => toggleCertificate(certificate)}>{certificate.is_public ? 'Hacer privado' : 'Compartir'}</button><button type="button" className="ghost danger-button" disabled={busy} onClick={() => deleteCertificate(certificate)}>Eliminar</button></div>
         </article>)}</div>}
       </section>
-      <p className="notice" role="status" aria-live="polite">{notice || 'Tu perfil comunitario es privado hasta que actives “Mostrar mi perfil en Comunidad”.'}</p>
+      <p className={`notice ${noticeError ? 'notice-error' : ''}`} role={noticeError ? 'alert' : 'status'} aria-live="polite">{notice || 'Tu perfil comunitario es privado hasta que actives “Mostrar mi perfil en Comunidad”.'}</p>
     </div>
   );
 }
