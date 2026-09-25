@@ -49,8 +49,9 @@ export async function updateProfile(form:FormData){
   const phone=val(form,'phone');
   const role=z.enum(['student','support','instructor','admin','super_admin']).parse(val(form,'role'));
   const {error}=await db.from('profiles').update({full_name,phone:phone||null,role}).eq('id',userId);
-  if(error) redirect(`/admin?error=${error.code==='42501'?'sin-permiso':'perfil-error'}`);
+  if(error) redirect(`/admin?user_id=${userId}&error=${error.code==='42501'?'sin-permiso':'perfil-error'}`);
   revalidatePath('/admin');revalidatePath('/dashboard');
+  redirect(`/admin?user_id=${userId}&success=perfil-actualizado`);
 }
 export async function createCourse(form:FormData){
     const {db,profile}=await staff();
@@ -149,11 +150,12 @@ export async function deleteLesson(form:FormData){
 }
 export async function grantAccess(form:FormData){
   const {db,profile}=await staff();if(!['super_admin','admin'].includes(profile.role))throw new Error('Sin permiso');
-  const {error}=await db.rpc('admin_grant_access',{p_user:z.uuid().parse(val(form,'user_id')),p_course:z.uuid().parse(val(form,'course_id')),p_days:z.number().int().min(1).max(3650).parse(Number(val(form,'days')))});if(error)throw new Error(error.message);revalidatePath('/admin');
+  const userId=z.uuid().parse(val(form,'user_id'));const courseId=z.uuid().parse(val(form,'course_id'));const days=z.number().int().min(1).max(3650).parse(Number(val(form,'days')));
+  const {error}=await db.rpc('admin_grant_access',{p_user:userId,p_course:courseId,p_days:days});if(error)redirect(`/admin?user_id=${userId}&error=acceso-error`);revalidatePath('/admin');revalidatePath('/dashboard');revalidatePath('/cursos');redirect(`/admin?user_id=${userId}&success=acceso-actualizado`);
 }
 export async function revokeAccess(form:FormData){
   const {db,profile}=await staff();if(!['super_admin','admin'].includes(profile.role))throw new Error('Sin permiso');
-  const {error}=await db.rpc('admin_revoke_access',{p_enrollment:z.uuid().parse(val(form,'enrollment_id'))});if(error)throw new Error(error.message);revalidatePath('/admin');revalidatePath('/dashboard');revalidatePath('/cursos');
+  const enrollmentId=z.uuid().parse(val(form,'enrollment_id'));let userId=val(form,'user_id');if(!z.uuid().safeParse(userId).success){const {data:enrollment}=await db.from('enrollments').select('user_id').eq('id',enrollmentId).single();userId=enrollment?.user_id||'';}if(!z.uuid().safeParse(userId).success)redirect('/admin?error=acceso-error');const {error}=await db.rpc('admin_revoke_access',{p_enrollment:enrollmentId});if(error)redirect(`/admin?user_id=${userId}&error=acceso-error`);revalidatePath('/admin');revalidatePath('/dashboard');revalidatePath('/cursos');redirect(`/admin?user_id=${userId}&success=acceso-retirado`);
 }
 export async function reviewTransfer(form:FormData){
   const {db,profile}=await staff();if(!['super_admin','admin'].includes(profile.role))throw new Error('Sin permiso');
