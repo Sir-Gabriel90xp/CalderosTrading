@@ -7,7 +7,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { browserDb } from '@/lib/supabase-browser';
 
 type Room = 'general' | 'vip';
-type MessageType = 'text' | 'sticker' | 'audio';
+type MessageType = 'text' | 'sticker' | 'image' | 'audio';
 type ChatMessage = {
   id: string; room: Room; user_id: string; message_type: MessageType; body: string | null;
   media_path: string | null; media_duration_seconds: number | null; author_name: string;
@@ -15,10 +15,11 @@ type ChatMessage = {
   is_hidden: boolean; created_at: string;
 };
 type ChatMute = { user_id: string; display_name: string; room_scope: string; muted_until: string; reason: string };
+type ChatReaction = { message_id: string; user_id: string; emoji: string };
 type Props = {
   userId: string; displayName: string; avatarPath: string | null;
   isModerator: boolean; canAccessVip: boolean; vipAccessUntil: string | null;
-  initialMessages: ChatMessage[]; initialMutes: ChatMute[];
+  initialMessages: ChatMessage[]; initialMutes: ChatMute[]; initialReactions: ChatReaction[];
 };
 type AudioDraft = { blob: Blob; url: string; seconds: number; mime: string };
 
@@ -41,10 +42,12 @@ function roleLabel(message: ChatMessage) {
   return null;
 }
 
-export default function CommunityChat({ userId, displayName, avatarPath, isModerator, canAccessVip: initialVipAccess, vipAccessUntil, initialMessages, initialMutes }: Props) {
+export default function CommunityChat({ userId, displayName, avatarPath, isModerator, canAccessVip: initialVipAccess, vipAccessUntil, initialMessages, initialMutes, initialReactions }: Props) {
   const [room, setRoom] = useState<Room>('general');
   const [canAccessVip, setCanAccessVip] = useState(initialVipAccess);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+  const [reactionRows, setReactionRows] = useState<ChatReaction[]>(initialReactions);
+  const [reactionPickerFor, setReactionPickerFor] = useState<string | null>(null);
   const [mediaUrls, setMediaUrls] = useState<Record<string, string>>({});
   const [mutes, setMutes] = useState(initialMutes);
   const [draft, setDraft] = useState('');
@@ -71,6 +74,8 @@ export default function CommunityChat({ userId, displayName, avatarPath, isModer
   const lastTypingSentRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const stickerInputRef = useRef<HTMLInputElement | null>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const audioRetryPathsRef = useRef(new Set<string>());
   const shellRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -165,6 +170,16 @@ export default function CommunityChat({ userId, displayName, avatarPath, isModer
       if (typeof payload.id !== 'string' || payload.is_hidden !== true) return;
       setMessages((current) => current.map((item) => item.id === payload.id ? { ...item, body: null, media_path: null, is_hidden: true } : item));
     });
+    channel.on('broadcast', { event: 'reaction' }, (event) => {
+      const payload = extractPayload(event);
+      if (typeof payload.message_id !== 'string' || typeof payload.user_id !== 'string' || typeof payload.emoji !== 'string') return;
+      setReactionRows((current) => {
+        const found = current.some((item) => item.message_id === payload.message_id && item.user_id === payload.user_id && item.emoji === payload.emoji);
+        if (payload.added === true && !found) return [...current, { message_id: payload.message_id as string, user_id: payload.user_id as string, emoji: payload.emoji as string }];
+        if (payload.added === false && found) return current.filter((item) => !(item.message_id === payload.message_id && item.user_id === payload.user_id && item.emoji === payload.emoji));
+        return current;
+      });
+    });
     channel.on('broadcast', { event: 'mute' }, (event) => {
       const payload = extractPayload(event);
       if (payload.user_id !== userId) return;
@@ -210,6 +225,18 @@ export default function CommunityChat({ userId, displayName, avatarPath, isModer
       void db.removeChannel(channel);
     };
   }, [room, userId, displayName, isModerator, mergeMessages, setFeedback]);
+
+  useEffect(() => {
+    const ids = roomMessages.map((message) => message.id);
+    if (!ids.length) return;
+    let active = true;
+    void browserDb().from('chat_message_reactions').select('message_id,user_id,emoji').in('message_id', ids).then(({ data }) => {
+      if (!active || !data) return;
+      const currentIds = new Set(ids);
+      setReactionRows((current) => [...current.filter((item) => !currentIds.has(item.message_id)), ...(data as ChatReaction[])]);
+    });
+    return () => { active = false; };
+  }, [room, roomMessages]);
 
   useEffect(() => {
     let active = true;
@@ -266,7 +293,8 @@ export default function CommunityChat({ userId, displayName, avatarPath, isModer
     const db = browserDb();
     let mediaPath: string | null = null;
     if (file) {
-      if (file.size > 2 * 1024 * 1024) { setFeedback('El archivo supera el límite seguro de 2 MB.', true); setSending(false); return; }
+      const maxSize = type === 'audio' ? 2 * 1024 * 1024 : 5 * 1024 * 1024;
+      if (file.size > maxSize) { setFeedback(type === 'audio' ? 'La nota de voz supera el límite de 2 MB.' : 'La imagen supera el límite de 5 MB.', true); setSending(false); return; }
       const contentType = mime?.split(';')[0] || file.type.split(';')[0];
       const extension = contentType === 'image/webp' ? 'webp' : contentType === 'image/png' ? 'png' : contentType === 'image/jpeg' ? 'jpg' : contentType === 'image/gif' ? 'gif' : contentType === 'audio/ogg' ? 'ogg' : contentType === 'audio/mp4' ? 'm4a' : contentType === 'audio/mpeg' ? 'mp3' : 'webm';
       mediaPath = `${userId}/${room}/${crypto.randomUUID()}.${extension}`;
@@ -319,6 +347,37 @@ export default function CommunityChat({ userId, displayName, avatarPath, isModer
     await postMessage('sticker', null, file, file.type);
   }
 
+  async function sendPhoto(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!['image/jpeg','image/png','image/webp','image/gif'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+      setFeedback('Elige una foto JPG, PNG, WebP o GIF de máximo 5 MB.', true);
+      return;
+    }
+    await postMessage('image', null, file, file.type);
+  }
+
+  async function toggleChatReaction(messageId: string, emoji: string) {
+    const existing = reactionRows.some((item) => item.message_id === messageId && item.user_id === userId && item.emoji === emoji);
+    const db = browserDb();
+    const result = existing
+      ? await db.from('chat_message_reactions').delete().eq('message_id', messageId).eq('user_id', userId).eq('emoji', emoji)
+      : await db.from('chat_message_reactions').insert({ message_id: messageId, user_id: userId, emoji });
+    if (result.error) { setFeedback('No se pudo guardar la reacción.', true); return; }
+    setReactionRows((current) => existing
+      ? current.filter((item) => !(item.message_id === messageId && item.user_id === userId && item.emoji === emoji))
+      : current.some((item) => item.message_id === messageId && item.user_id === userId && item.emoji === emoji) ? current : [...current, { message_id: messageId, user_id: userId, emoji }]);
+    setReactionPickerFor(null);
+  }
+
+  async function retryAudio(path: string) {
+    if (audioRetryPathsRef.current.has(path)) return;
+    audioRetryPathsRef.current.add(path);
+    const { data, error } = await browserDb().storage.from('chat-media').createSignedUrl(path, 3600);
+    if (!error && data?.signedUrl) setMediaUrls((current) => ({ ...current, [path]: data.signedUrl }));
+  }
+
   async function startRecording() {
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
       setFeedback('Este navegador no permite grabar notas de voz. Prueba con Safari o Chrome actualizado.', true);
@@ -328,7 +387,7 @@ export default function CommunityChat({ userId, displayName, avatarPath, isModer
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
       streamRef.current = stream;
       chunksRef.current = [];
-      const supported = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4'].find((type) => MediaRecorder.isTypeSupported(type));
+      const supported = ['audio/mp4;codecs=mp4a.40.2', 'audio/mp4', 'audio/webm;codecs=opus', 'audio/ogg;codecs=opus'].find((type) => MediaRecorder.isTypeSupported(type));
       const recorder = new MediaRecorder(stream, supported ? { mimeType: supported, audioBitsPerSecond: 48000 } : { audioBitsPerSecond: 48000 });
       recorderRef.current = recorder;
       discardRecordingRef.current = false;
@@ -340,7 +399,7 @@ export default function CommunityChat({ userId, displayName, avatarPath, isModer
         setRecording(false);
         const seconds = Math.min(60, Math.max(1, Math.round((Date.now() - recordingStartRef.current) / 1000)));
         if (discardRecordingRef.current) { chunksRef.current = []; return; }
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || supported || 'audio/webm' });
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || supported || chunksRef.current[0]?.type || 'audio/webm' });
         chunksRef.current = [];
         if (blob.size > 2 * 1024 * 1024) { setFeedback('La nota de voz superó el límite de 2 MB. Grábala más corta.', true); return; }
         const url = URL.createObjectURL(blob);
@@ -421,7 +480,7 @@ export default function CommunityChat({ userId, displayName, avatarPath, isModer
     <section ref={shellRef} className="community-chat-shell" aria-label="Chats de CalderosTrading">
       <header className="chat-page-heading">
         <div><span className="eyebrow">Comunidad privada</span><h1>El punto de encuentro</h1><p>Ideas, avances y conversaciones de trading, en vivo.</p></div>
-        <Link className="chat-profile-chip" href="/dashboard/perfil" aria-label="Abrir mi perfil">
+        <Link className="chat-profile-chip" href={`/comunidad/${userId}`} aria-label="Abrir mi perfil público">
           <span className="chat-avatar chat-avatar-self">{mediaUrls[avatarPath || ''] ? <Image unoptimized src={mediaUrls[avatarPath || '']} alt="" width={42} height={42}/> : <b>{displayName.slice(0,1).toUpperCase()}</b>}</span><span><strong>{displayName}</strong><small>Tu perfil</small></span><span aria-hidden="true">↗</span>
         </Link>
       </header>
@@ -462,13 +521,23 @@ export default function CommunityChat({ userId, displayName, avatarPath, isModer
               const previous = roomMessages[index - 1];
               const grouped = previous?.user_id === message.user_id && new Date(message.created_at).getTime() - new Date(previous.created_at).getTime() < 5 * 60 * 1000;
               return <article className={`chat-message-row ${own ? 'is-own' : ''} ${grouped ? 'is-grouped' : ''}`} key={message.id}>
-                {!grouped ? <span className="chat-avatar chat-message-avatar">{message.author_avatar_path && mediaUrls[message.author_avatar_path] ? <Image unoptimized src={mediaUrls[message.author_avatar_path]} alt="" width={38} height={38}/> : <b>{message.author_name.slice(0,1).toUpperCase()}</b>}</span> : <span className="chat-avatar-spacer"/>}
+                {!grouped ? <Link className="chat-avatar chat-message-avatar chat-avatar-link" href={`/comunidad/${message.user_id}`} aria-label={`Ver el perfil de ${message.author_name}`}>{message.author_avatar_path && mediaUrls[message.author_avatar_path] ? <Image unoptimized src={mediaUrls[message.author_avatar_path]} alt="" width={38} height={38}/> : <b>{message.author_name.slice(0,1).toUpperCase()}</b>}</Link> : <span className="chat-avatar-spacer"/>}
                 <div className="chat-message-content">
-                  {!grouped && <div className="chat-message-author"><strong>{message.author_name}</strong>{badge && <span className={`chat-role-badge ${badge.className}`}>{badge.label}</span>}<time suppressHydrationWarning dateTime={message.created_at}>{new Date(message.created_at).toLocaleTimeString('es-DO',{hour:'2-digit',minute:'2-digit'})}</time></div>}
+                  {!grouped && <div className="chat-message-author"><Link href={`/comunidad/${message.user_id}`}><strong>{message.author_name}</strong></Link>{badge && <span className={`chat-role-badge ${badge.className}`}>{badge.label}</span>}<time suppressHydrationWarning dateTime={message.created_at}>{new Date(message.created_at).toLocaleTimeString('es-DO',{hour:'2-digit',minute:'2-digit'})}</time></div>}
                   <div className={`chat-bubble ${own ? 'chat-bubble-own' : ''} ${message.message_type === 'sticker' ? 'chat-bubble-sticker' : ''}`}>
-                    {message.is_hidden ? <p className="chat-hidden-message">Este mensaje fue retirado por moderación.</p> : message.message_type === 'text' ? <p>{message.body}</p> : message.message_type === 'sticker' ? message.media_path && mediaUrls[message.media_path] ? <Image unoptimized className="chat-imported-sticker" src={mediaUrls[message.media_path]} alt="Sticker compartido" width={180} height={180}/> : <span className="chat-emoji-sticker" role="img" aria-label="Sticker">{message.body}</span> : message.media_path && mediaUrls[message.media_path] ? <div className="chat-voice-note"><span className="chat-voice-icon">▶</span><audio controls preload="none" src={mediaUrls[message.media_path]}/><span className="chat-voice-duration">{message.media_duration_seconds || 0}s</span></div> : <span className="chat-media-loading">Cargando nota de voz…</span>}
+                    {message.is_hidden ? <p className="chat-hidden-message">Este mensaje fue retirado por moderación.</p> : message.message_type === 'text' ? <p>{message.body}</p> : message.message_type === 'sticker' ? message.media_path && mediaUrls[message.media_path] ? <Image unoptimized className="chat-imported-sticker" src={mediaUrls[message.media_path]} alt="Sticker compartido" width={180} height={180}/> : <span className="chat-emoji-sticker" role="img" aria-label="Sticker">{message.body}</span> : message.message_type === 'image' ? message.media_path && mediaUrls[message.media_path] ? <a className="chat-photo-link" href={mediaUrls[message.media_path]} target="_blank" rel="noreferrer"><Image unoptimized className="chat-shared-photo" src={mediaUrls[message.media_path]} alt={`Foto enviada por ${message.author_name}`} width={700} height={520}/></a> : <span className="chat-media-loading">Cargando foto…</span> : message.media_path && mediaUrls[message.media_path] ? <div className="chat-voice-note"><span className="chat-voice-icon">▶</span><audio controls preload="metadata" src={mediaUrls[message.media_path]} onError={() => void retryAudio(message.media_path!)} /><span className="chat-voice-duration">{message.media_duration_seconds || 0}s</span><a className="chat-audio-download" href={mediaUrls[message.media_path]} download>Descargar</a></div> : <span className="chat-media-loading">Preparando audio…</span>}
                     {message.message_type !== 'text' && !message.is_hidden && <time suppressHydrationWarning className="chat-media-time" dateTime={message.created_at}>{new Date(message.created_at).toLocaleTimeString('es-DO',{hour:'2-digit',minute:'2-digit'})}</time>}
                   </div>
+                  {!message.is_hidden && <div className="chat-reaction-row">
+                    {['❤️','🔥','👏','💎','🚀','😂'].map((emoji) => {
+                      const matches = reactionRows.filter((item) => item.message_id === message.id && item.emoji === emoji);
+                      if (!matches.length) return null;
+                      return <button type="button" key={emoji} className={`chat-reaction-chip ${matches.some((item) => item.user_id === userId) ? 'is-reacted' : ''}`} aria-label={`${emoji}, ${matches.length} reacciones`} onClick={() => void toggleChatReaction(message.id, emoji)}>{emoji} <span>{matches.length}</span></button>;
+                    })}
+                    <div className="chat-reaction-add-wrap"><button type="button" className="chat-reaction-add" aria-label="Reaccionar al mensaje" aria-expanded={reactionPickerFor === message.id} onClick={() => setReactionPickerFor((current) => current === message.id ? null : message.id)}>＋</button>
+                      {reactionPickerFor === message.id && <div className="chat-reaction-picker">{['❤️','🔥','👏','💎','🚀','😂'].map((emoji) => <button type="button" key={emoji} onClick={() => void toggleChatReaction(message.id, emoji)} aria-label={`Reaccionar ${emoji}`}>{emoji}</button>)}</div>}
+                    </div>
+                  </div>}
                   {isModerator && !own && !message.is_hidden && <div className="chat-message-moderation"><button type="button" onClick={() => void hideMessage(message)}>Ocultar</button><button type="button" onClick={() => void muteUser({ id: message.user_id, name: message.author_name })}>Silenciar</button><button type="button" onClick={() => void muteUser({ id: message.user_id, name: message.author_name }, 'all')}>Todas las salas</button></div>}
                 </div>
               </article>;
@@ -484,6 +553,8 @@ export default function CommunityChat({ userId, displayName, avatarPath, isModer
             {!canAccessVip && room === 'vip' ? <div className="chat-vip-locked"><span>🔒</span><div><strong>Tu sala VIP no está activa</strong><small>Activa un curso para entrar al chat exclusivo de estudiantes.</small></div><Link className="button" href="/cursos">Ver cursos</Link></div> : <form className="chat-composer" onSubmit={submitText}>
               <button type="button" className={`chat-tool-button ${stickersOpen ? 'is-selected' : ''}`} aria-label="Abrir stickers" aria-expanded={stickersOpen} onClick={() => setStickersOpen((value) => !value)}>☺</button>
               <textarea aria-label="Escribe un mensaje" placeholder={`Escribe en ${room === 'vip' ? 'Trading VIP' : 'Chat general'}…`} rows={1} maxLength={2000} value={draft} onChange={(event) => { setDraft(event.target.value); sendTyping(); }} onKeyDown={submitOnEnter} disabled={sending || recording || Boolean(audioDraft)} />
+              <input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onChange={(event) => void sendPhoto(event)} />
+              <button type="button" className="chat-tool-button" aria-label="Enviar una foto" title="Enviar una foto" onClick={() => imageInputRef.current?.click()} disabled={sending || recording || Boolean(audioDraft)}>▧</button>
               <button type="button" className={`chat-tool-button ${recording ? 'is-recording' : ''}`} aria-label="Grabar nota de voz de hasta un minuto" title="Nota de voz · máximo 1 minuto" onClick={() => recording ? stopRecording() : void startRecording()} disabled={sending || Boolean(audioDraft)}>{recording ? '■' : '🎙️'}</button>
               <input ref={stickerInputRef} type="file" accept=".webp,.png,.jpg,.jpeg,.gif,image/webp,image/png,image/jpeg,image/gif" hidden onChange={(event) => void importSticker(event)}/>
               <button type="submit" className="chat-send-button" aria-label="Enviar mensaje" disabled={sending || !draft.trim() || recording}>{sending ? '…' : '➤'}</button>
