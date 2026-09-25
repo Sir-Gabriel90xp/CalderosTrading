@@ -2,7 +2,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
-import { adminDb, serverDb, viewer } from '@/lib/supabase';
+import { serverDb, viewer } from '@/lib/supabase';
 
 function val(form:FormData,key:string){return String(form.get(key)||'').trim()}
 function safePath(p:string){return p.startsWith('/') && !p.startsWith('//') ? p : '/dashboard'}
@@ -149,13 +149,55 @@ export async function deleteLesson(form:FormData){
   revalidatePath('/admin');revalidatePath('/admin/cursos');revalidatePath('/dashboard');revalidatePath('/cursos');revalidatePath('/curso/[slug]','page');
 }
 export async function grantAccess(form:FormData){
-  const {db,profile}=await staff();if(!['super_admin','admin'].includes(profile.role))throw new Error('Sin permiso');
-  const userId=z.uuid().parse(val(form,'user_id'));const courseId=z.uuid().parse(val(form,'course_id'));const days=z.number().int().min(1).max(3650).parse(Number(val(form,'days')));
-  const elevated=adminDb();if(!elevated){const {error}=await db.rpc('admin_grant_access',{p_user:userId,p_course:courseId,p_days:days});if(error)redirect(`/admin?user_id=${userId}&error=acceso-error&detail=${encodeURIComponent(error.message.slice(0,180))}`);const {data:verified,error:verifyError}=await db.from('enrollments').select('id,status,expires_at').eq('user_id',userId).eq('course_id',courseId).maybeSingle();if(verifyError||!verified?.id||verified.status!=='active')redirect(`/admin?user_id=${userId}&error=acceso-error&detail=${encodeURIComponent(verifyError?.message||'La RPC no creó una matrícula activa')}`);revalidatePath('/admin');revalidatePath('/dashboard');revalidatePath('/cursos');redirect(`/admin?user_id=${userId}&success=acceso-actualizado`);}const {data:existing,error:readError}=await elevated.from('enrollments').select('id,access_code,expires_at').eq('user_id',userId).eq('course_id',courseId).maybeSingle();if(readError)redirect(`/admin?user_id=${userId}&error=acceso-error&detail=${encodeURIComponent(readError.message.slice(0,180))}`);const currentExpiry=existing?.expires_at&&new Date(existing.expires_at)>new Date()?new Date(existing.expires_at):new Date();const expiresAt=new Date(currentExpiry.getTime()+days*86400000).toISOString();const result=existing?await elevated.from('enrollments').update({expires_at:expiresAt,status:'active'}).eq('id',existing.id):await elevated.from('enrollments').insert({user_id:userId,course_id:courseId,starts_at:new Date().toISOString(),expires_at:expiresAt,access_code:crypto.randomUUID().replaceAll('-','').slice(0,10).toUpperCase(),status:'active'});if(result.error)redirect(`/admin?user_id=${userId}&error=acceso-error&detail=${encodeURIComponent(result.error.message.slice(0,180))}`);revalidatePath('/admin');revalidatePath('/dashboard');revalidatePath('/cursos');redirect(`/admin?user_id=${userId}&success=acceso-actualizado`);
+  const {db,profile}=await staff();
+  if(!profile || !['super_admin','admin'].includes(profile.role)) redirect('/admin?error=sin-permiso');
+  const userId=z.uuid().safeParse(val(form,'user_id'));
+  const courseId=z.uuid().safeParse(val(form,'course_id'));
+  const days=z.number().int().min(1).max(3650).safeParse(Number(val(form,'days')));
+  if(!userId.success || !courseId.success || !days.success) redirect('/admin?error=acceso-datos');
+  const destination=`/admin?user_id=${userId.data}`;
+  const {error}=await db.rpc('admin_grant_access',{p_user:userId.data,p_course:courseId.data,p_days:days.data});
+  if(error) redirect(`${destination}&error=acceso-error&detail=${encodeURIComponent(error.message.slice(0,180))}`);
+  const {data:enrollment,error:readError}=await db.from('enrollments')
+    .select('id,access_code,status,expires_at').eq('user_id',userId.data).eq('course_id',courseId.data).single();
+  if(readError || !enrollment?.access_code || enrollment.status!=='active' ||
+     (enrollment.expires_at && new Date(enrollment.expires_at)<=new Date()))
+    redirect(`${destination}&error=acceso-no-sincronizado`);
+  revalidatePath('/admin');revalidatePath('/dashboard');revalidatePath('/cursos');
+  redirect(`${destination}&success=acceso-actualizado`);
+}
+export async function setEnrollmentDays(form:FormData){
+  const {db,profile}=await staff();
+  if(!profile || !['super_admin','admin'].includes(profile.role)) redirect('/admin?error=sin-permiso');
+  const enrollmentId=z.uuid().safeParse(val(form,'enrollment_id'));
+  const userId=z.uuid().safeParse(val(form,'user_id'));
+  const days=z.number().int().min(1).max(3650).safeParse(Number(val(form,'days')));
+  if(!enrollmentId.success || !userId.success || !days.success) redirect('/admin?error=acceso-datos');
+  const destination=`/admin?user_id=${userId.data}`;
+  const {error}=await db.rpc('admin_set_enrollment_days',{p_enrollment:enrollmentId.data,p_days:days.data});
+  if(error) redirect(`${destination}&error=acceso-error&detail=${encodeURIComponent(error.message.slice(0,180))}`);
+  const {data:enrollment,error:readError}=await db.from('enrollments')
+    .select('status,expires_at,access_code').eq('id',enrollmentId.data).eq('user_id',userId.data).single();
+  if(readError || !enrollment?.access_code || enrollment.status!=='active' || !enrollment.expires_at || new Date(enrollment.expires_at)<=new Date())
+    redirect(`${destination}&error=acceso-no-sincronizado`);
+  revalidatePath('/admin');revalidatePath('/dashboard');revalidatePath('/cursos');
+  redirect(`${destination}&success=estadía-actualizada`);
 }
 export async function revokeAccess(form:FormData){
-  const {db,profile}=await staff();if(!['super_admin','admin'].includes(profile.role))throw new Error('Sin permiso');
-  const enrollmentId=z.uuid().parse(val(form,'enrollment_id'));const elevated=adminDb();let userId=val(form,'user_id');if(!elevated){const {error}=await db.rpc('admin_revoke_access',{p_enrollment:enrollmentId});if(error)redirect(`/admin?user_id=${userId}&error=acceso-error&detail=${encodeURIComponent(error.message.slice(0,180))}`);revalidatePath('/admin');revalidatePath('/dashboard');revalidatePath('/cursos');redirect(`/admin?user_id=${userId}&success=acceso-retirado`);}if(!z.uuid().safeParse(userId).success){const {data:enrollment}=await elevated.from('enrollments').select('user_id').eq('id',enrollmentId).single();userId=enrollment?.user_id||'';}if(!z.uuid().safeParse(userId).success)redirect('/admin?error=acceso-error');const {error}=await elevated.from('enrollments').update({status:'suspended',expires_at:new Date().toISOString()}).eq('id',enrollmentId);if(error)redirect(`/admin?user_id=${userId}&error=acceso-error&detail=${encodeURIComponent(error.message.slice(0,180))}`);revalidatePath('/admin');revalidatePath('/dashboard');revalidatePath('/cursos');redirect(`/admin?user_id=${userId}&success=acceso-retirado`);
+  const {db,profile}=await staff();
+  if(!profile || !['super_admin','admin'].includes(profile.role)) redirect('/admin?error=sin-permiso');
+  const enrollmentId=z.uuid().safeParse(val(form,'enrollment_id'));
+  const userId=z.uuid().safeParse(val(form,'user_id'));
+  if(!enrollmentId.success || !userId.success) redirect('/admin?error=acceso-datos');
+  const destination=`/admin?user_id=${userId.data}`;
+  const {error}=await db.rpc('admin_revoke_access',{p_enrollment:enrollmentId.data});
+  if(error) redirect(`${destination}&error=acceso-error&detail=${encodeURIComponent(error.message.slice(0,180))}`);
+  const {data:enrollment,error:readError}=await db.from('enrollments')
+    .select('status,expires_at').eq('id',enrollmentId.data).eq('user_id',userId.data).single();
+  if(readError || enrollment?.status!=='suspended' || !enrollment.expires_at ||
+     new Date(enrollment.expires_at)>new Date()) redirect(`${destination}&error=acceso-no-sincronizado`);
+  revalidatePath('/admin');revalidatePath('/dashboard');revalidatePath('/cursos');
+  redirect(`${destination}&success=acceso-retirado`);
 }
 export async function reviewTransfer(form:FormData){
   const {db,profile}=await staff();if(!['super_admin','admin'].includes(profile.role))throw new Error('Sin permiso');
@@ -174,9 +216,11 @@ export async function sendMessage(form:FormData){
 }
 export async function saveSettings(form:FormData){
  const {db,profile}=await staff();if(!['super_admin','admin'].includes(profile.role))throw new Error('Sin permiso');
- const keys=['bank_name','bank_account','bank_holder','whatsapp_group'];
+ const keys=['bank_name','bank_account','bank_holder','whatsapp_group','paypal_payment_link'];
  const rows=keys.map(key=>({key,value:val(form,key)}));const group=rows.find(r=>r.key==='whatsapp_group')?.value;
  if(group && !/^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9]+$/.test(group))throw new Error('Enlace de grupo no válido');
+ const paypalLink=rows.find(r=>r.key==='paypal_payment_link')?.value;
+ if(paypalLink){try{const url=new URL(paypalLink);if(url.protocol!=='https:'||!['paypal.me','www.paypal.com','paypal.com'].includes(url.hostname))throw new Error();}catch{throw new Error('Usa un enlace seguro de PayPal (paypal.me o paypal.com).');}}
  const {error}=await db.from('settings').upsert(rows);if(error)throw new Error(error.message);revalidatePath('/admin');revalidatePath('/dashboard');
 }
 
