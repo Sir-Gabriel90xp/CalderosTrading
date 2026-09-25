@@ -133,6 +133,8 @@ create policy lessons_read_anon on public.lessons for select to anon using(
 );
 create policy lessons_write on public.lessons for all to authenticated using(private.has_role(array['super_admin','admin','instructor'])) with check(private.has_role(array['super_admin','admin','instructor']));
 create policy enrollments_read on public.enrollments for select to authenticated using(user_id=(select auth.uid()) or private.has_role(array['super_admin','admin','support']));
+create policy enrollments_admin_insert on public.enrollments for insert to authenticated with check(private.has_role(array['super_admin','admin']));
+create policy enrollments_admin_update on public.enrollments for update to authenticated using(private.has_role(array['super_admin','admin'])) with check(private.has_role(array['super_admin','admin']));
 create policy progress_read on public.lesson_progress for select to authenticated using(user_id=(select auth.uid()) or private.has_role(array['super_admin','admin','instructor','support']));
 create policy progress_insert on public.lesson_progress for insert to authenticated with check(user_id=(select auth.uid()) and exists(select 1 from public.lessons l join public.modules m on m.id=l.module_id where l.id=lesson_id and l.published and private.has_access(m.course_id)));
 create policy progress_update on public.lesson_progress for update to authenticated using(user_id=(select auth.uid())) with check(user_id=(select auth.uid()));
@@ -193,6 +195,7 @@ grant execute on function public.admin_review_transfer(uuid,boolean) to authenti
 grant select on public.courses,public.modules to anon;
 grant select on public.profiles,public.courses,public.modules,public.lessons,public.enrollments,public.lesson_progress,public.bank_transfers,public.messages,public.settings,public.audit_logs,public.payments to authenticated;
 grant insert,update,delete on public.courses,public.modules,public.lessons to authenticated;
+grant insert,update on public.enrollments to authenticated;
 grant insert,update on public.lesson_progress to authenticated;
 grant insert on public.bank_transfers,public.messages to authenticated;
 grant insert,update,delete on public.settings to authenticated;
