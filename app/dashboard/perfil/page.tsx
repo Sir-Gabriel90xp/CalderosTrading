@@ -11,7 +11,7 @@ export default async function ProfilePage() {
 
   const [{ data: profile }, { data: rows }] = await Promise.all([
     db.from('community_profiles')
-      .select('display_name,country,bio,instagram_url,funded_accounts_count,trading_capital_usd,avatar_path,is_public')
+      .select('display_name,country,bio,instagram_url,funded_accounts_count,trading_capital_usd,avatar_path,banner_path,is_public')
       .eq('user_id', user.sub).maybeSingle(),
     db.from('trading_certificates')
       .select('id,title,issuer,file_path,is_public,created_at')
@@ -26,10 +26,12 @@ export default async function ProfilePage() {
     funded_accounts_count: profile?.funded_accounts_count || 0,
     trading_capital_usd: Number(profile?.trading_capital_usd || 0),
     avatar_path: profile?.avatar_path || null,
+    banner_path: profile?.banner_path || null,
     is_public: profile?.is_public || false,
   };
-  const [{ data: avatar }, certificates] = await Promise.all([
+  const [{ data: avatar }, { data: banner }, certificates] = await Promise.all([
     initialProfile.avatar_path ? db.storage.from('profile-avatars').createSignedUrl(initialProfile.avatar_path, 3600) : Promise.resolve({ data: null }),
+    initialProfile.banner_path ? db.storage.from('community-media').createSignedUrl(initialProfile.banner_path, 3600) : Promise.resolve({ data: null }),
     Promise.all((rows || []).map(async (row) => {
       const { data } = await db.storage.from('trading-certificates').createSignedUrl(row.file_path, 3600);
       return { ...row, signed_url: data?.signedUrl || null };
@@ -53,6 +55,7 @@ export default async function ProfilePage() {
           userId={user.sub}
           initialProfile={initialProfile}
           initialAvatarUrl={avatar?.signedUrl || null}
+          initialBannerUrl={banner?.signedUrl || null}
           initialCertificates={certificates}
         />
       </div>
