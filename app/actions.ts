@@ -6,6 +6,7 @@ import { serverDb, viewer } from '@/lib/supabase';
 
 function val(form:FormData,key:string){return String(form.get(key)||'').trim()}
 function safePath(p:string){return p.startsWith('/') && !p.startsWith('//') ? p : '/dashboard'}
+function slugify(value:string){return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')}
 async function staff(){const v=await viewer();if(!v.user||!['super_admin','admin','instructor','support'].includes(v.profile?.role))throw new Error('Sin autorización');return v}
 export async function signIn(form:FormData){
   const db=await serverDb();const email=val(form,'email'),password=val(form,'password');
@@ -38,7 +39,8 @@ export async function createCourse(form:FormData){
     const {db,profile}=await staff();
     if(!profile || !['super_admin','admin','instructor'].includes(profile.role)) redirect('/admin?error=sin-permiso');
   const schema=z.object({title:z.string().min(3).max(120),slug:z.string().regex(/^[a-z0-9-]+$/),description:z.string().min(10).max(3000),price:z.number().min(0),level:z.string().max(30),paypal_usd_price:z.number().positive().nullable()});
-  const p=schema.parse({title:val(form,'title'),slug:val(form,'slug'),description:val(form,'description'),price:Number(val(form,'price')),level:val(form,'level'),paypal_usd_price:val(form,'paypal_usd_price')?Number(val(form,'paypal_usd_price')):null});
+  const slug=slugify(val(form,'slug'));if(!slug)redirect('/admin?error=slug-invalido');
+  const p=schema.parse({title:val(form,'title'),slug,description:val(form,'description'),price:Number(val(form,'price')),level:val(form,'level'),paypal_usd_price:val(form,'paypal_usd_price')?Number(val(form,'paypal_usd_price')):null});
     const {error}=await db.from('courses').insert({...p,published:form.get('published')==='on',instructor_id:profile.id});
     if(error){
       const message=error.code==='23505'?'slug-duplicado':error.code==='42501'?'sin-permiso':'error-curso';
@@ -51,7 +53,8 @@ export async function updateCourse(form:FormData){
   if(!profile || !['super_admin','admin'].includes(profile.role)) redirect('/admin/cursos?error=sin-permiso');
   const courseId=z.uuid().parse(val(form,'course_id'));
   const schema=z.object({title:z.string().min(3).max(120),slug:z.string().regex(/^[a-z0-9-]+$/),description:z.string().min(10).max(3000),price:z.number().min(0),level:z.string().max(30),paypal_usd_price:z.number().positive().nullable()});
-  const values=schema.parse({title:val(form,'title'),slug:val(form,'slug'),description:val(form,'description'),price:Number(val(form,'price')),level:val(form,'level'),paypal_usd_price:val(form,'paypal_usd_price')?Number(val(form,'paypal_usd_price')):null});
+  const slug=slugify(val(form,'slug'));if(!slug)redirect('/admin/cursos?error=slug-invalido');
+  const values=schema.parse({title:val(form,'title'),slug,description:val(form,'description'),price:Number(val(form,'price')),level:val(form,'level'),paypal_usd_price:val(form,'paypal_usd_price')?Number(val(form,'paypal_usd_price')):null});
   const cover=form.get('cover');
   let cover_url:string|undefined;
   if(cover instanceof File && cover.size){
