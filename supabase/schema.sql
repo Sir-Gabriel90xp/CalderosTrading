@@ -29,6 +29,7 @@ create table public.enrollments (
   id uuid primary key default gen_random_uuid(), user_id uuid not null references public.profiles(id) on delete cascade,
   course_id uuid not null references public.courses(id) on delete cascade,
   starts_at timestamptz not null default now(), expires_at timestamptz,
+  access_code text not null default upper(substr(replace(gen_random_uuid()::text,'-',''),1,10)),
   status text not null default 'active' check(status in ('active','suspended','pending')),
   unique(user_id,course_id)
 );
@@ -83,12 +84,6 @@ create function private.has_access(p_course uuid) returns boolean language sql s
      and e.course_id=p_course
      and e.status='active'
      and (e.expires_at is null or e.expires_at>now())
- )
- or exists(
-   select 1 from public.bank_transfers bt
-   where bt.user_id=(select auth.uid())
-     and bt.course_id=p_course
-     and bt.status='approved'
  );
 $$;
 revoke all on function private.has_access(uuid) from public, anon;
@@ -218,3 +213,45 @@ create function public.finalize_paypal_payment(p_order_id text,p_capture_id text
 $$;
 revoke all on function public.finalize_paypal_payment(text,text) from public,anon,authenticated;
 grant execute on function public.finalize_paypal_payment(text,text) to service_role;
+
+-- Migracion para proyectos existentes: genera un codigo unico por matricula.
+alter table public.enrollments add column if not exists access_code text;
+update public.enrollments set access_code=upper(substr(replace(gen_random_uuid()::text,'-',''),1,10)) where access_code is null;
+alter table public.enrollments alter column access_code set default upper(substr(replace(gen_random_uuid()::text,'-',''),1,10));
+alter table public.enrollments alter column access_code set not null;
+create unique index if not exists enrollments_access_code_key on public.enrollments(access_code);
+
+-- El acceso depende de una matricula activa y vigente; una transferencia aprobada crea esa matricula.
+create or replace function private.has_access(p_course uuid) returns boolean language sql stable security definer set search_path = '' as $$
+ select exists(
+   select 1 from public.enrollments e
+   where e.user_id=(select auth.uid())
+     and e.course_id=p_course
+     and e.status='active'
+     and (e.expires_at is null or e.expires_at>now())
+ );
+$$;
+
+create or replace function public.admin_grant_access(p_user uuid,p_course uuid,p_days integer) returns void language plpgsql security definer set search_path = '' as $$
+ begin
+   if (select auth.uid()) is null or not private.has_role(array['super_admin','admin']) then raise exception 'Sin autorización'; end if;
+   if p_days<1 or p_days>3650 then raise exception 'Duración inválida'; end if;
+   insert into public.enrollments(user_id,course_id,starts_at,expires_at,status)
+   values(p_user,p_course,now(),now()+make_interval(days=>p_days),'active')
+   on conflict(user_id,course_id) do update set expires_at=case when public.enrollments.expires_at is null then null else greatest(public.enrollments.expires_at,now())+make_interval(days=>p_days) end,status='active';
+   insert into public.audit_logs(actor_id,action,target_id,details) values((select auth.uid()),'grant_access',p_user,jsonb_build_object('course_id',p_course,'days',p_days));
+ end;
+$$;
+
+create or replace function public.admin_revoke_access(p_enrollment uuid) returns void language plpgsql security definer set search_path = '' as $$
+ declare target public.enrollments%rowtype;
+ begin
+   if (select auth.uid()) is null or not private.has_role(array['super_admin','admin']) then raise exception 'Sin autorización'; end if;
+   select * into target from public.enrollments where id=p_enrollment for update;
+   if target.id is null then raise exception 'Acceso no encontrado'; end if;
+   update public.enrollments set status='suspended',expires_at=case when expires_at is null then now() else expires_at end where id=p_enrollment;
+   insert into public.audit_logs(actor_id,action,target_id,details) values((select auth.uid()),'revoke_access',target.user_id,jsonb_build_object('course_id',target.course_id,'enrollment_id',p_enrollment));
+ end;
+$$;
+revoke all on function public.admin_revoke_access(uuid) from public,anon;
+grant execute on function public.admin_revoke_access(uuid) to authenticated;

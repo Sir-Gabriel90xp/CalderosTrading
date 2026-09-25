@@ -130,6 +130,10 @@ export async function grantAccess(form:FormData){
   const {db,profile}=await staff();if(!['super_admin','admin'].includes(profile.role))throw new Error('Sin permiso');
   const {error}=await db.rpc('admin_grant_access',{p_user:z.uuid().parse(val(form,'user_id')),p_course:z.uuid().parse(val(form,'course_id')),p_days:z.number().int().min(1).max(3650).parse(Number(val(form,'days')))});if(error)throw new Error(error.message);revalidatePath('/admin');
 }
+export async function revokeAccess(form:FormData){
+  const {db,profile}=await staff();if(!['super_admin','admin'].includes(profile.role))throw new Error('Sin permiso');
+  const {error}=await db.rpc('admin_revoke_access',{p_enrollment:z.uuid().parse(val(form,'enrollment_id'))});if(error)throw new Error(error.message);revalidatePath('/admin');revalidatePath('/dashboard');revalidatePath('/cursos');
+}
 export async function reviewTransfer(form:FormData){
   const {db,profile}=await staff();if(!['super_admin','admin'].includes(profile.role))throw new Error('Sin permiso');
   const {error}=await db.rpc('admin_review_transfer',{p_id:z.uuid().parse(val(form,'transfer_id')),p_approve:val(form,'decision')==='approve'});if(error)throw new Error(error.message);revalidatePath('/admin');
