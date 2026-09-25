@@ -16,3 +16,42 @@
 @media(max-width:850px){.community-hero{grid-template-columns:1fr;padding:48px 0 30px}.community-highlight{min-height:160px}.podium-grid{grid-template-columns:1fr;max-width:600px;margin:22px auto 0}.podium-1{transform:none;grid-row:1}.podium-2{grid-row:2}.podium-3{grid-row:3}.podium-card{padding:23px}.certificate-community-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.profile-editor-heading{align-items:flex-start}.certificate-own-item{grid-template-columns:48px minmax(0,1fr)}.certificate-own-actions{grid-column:2;justify-content:flex-start}.dashboard-community-card{grid-template-columns:1fr 110px}.dashboard-community-emojis{font-size:28px}}
 @media(max-width:580px){.community-hero{padding:38px 0 20px;gap:20px}.community-hero h1{font-size:42px}.community-hero p{font-size:16px}.community-highlight{min-height:140px}.community-section{padding:22px 0}.community-section-head{align-items:flex-start;display:grid}.community-ranking-note{justify-self:start}.podium-card{padding:22px 16px}.podium-capital{font-size:27px}.leaderboard-title{padding:19px 16px 8px}.certificate-community-grid{grid-template-columns:1fr}.certificate-preview{height:205px}.share-certificate-cta{align-items:flex-start;display:grid}.profile-editor-card,.certificate-manager{padding:19px}.profile-editor-heading{display:grid;justify-items:start}.profile-form{grid-template-columns:1fr}.profile-full-row{grid-column:auto}.profile-form-footer{align-items:stretch;display:grid}.profile-form-footer button{width:100%}.certificate-manager .section-head{display:grid;align-items:start}.certificate-upload-form{grid-template-columns:1fr;padding:13px}.certificate-file{grid-column:auto}.certificate-upload-form button{width:100%}.certificate-own-item{gap:10px}.certificate-own-actions{gap:5px}.certificate-own-actions .button,.certificate-own-actions button{font-size:11px;padding:8px}.certificate-empty{align-items:flex-start}.dashboard-community-card{grid-template-columns:1fr}.dashboard-community-emojis{display:none}.dashboard-community-card .actions{display:grid}.whatsapp-community-link{grid-column:auto}}
 .nav-sign-out{white-space:nowrap;padding:8px 12px;font-size:13px}
+
+/* Panel admin: navegación fija y acciones de matrícula separadas por tarea. */
+.admin-layout{grid-template-columns:250px minmax(0,1fr);gap:28px;align-items:start}
+.admin-sidebar{position:sticky;top:16px;max-height:calc(100vh - 32px);overflow-y:auto;align-content:start;gap:13px;padding:15px;border:1px solid var(--line);border-right:1px solid var(--line);border-radius:16px;background:var(--panel);box-shadow:0 14px 35px #0003}
+.admin-sidebar .sidebar-group{gap:5px}
+.admin-sidebar .sidebar-label{padding:8px 10px 4px}
+.admin-sidebar a{display:block;padding:9px 11px;border:1px solid transparent;border-radius:9px;font-size:14px}
+.admin-sidebar a:hover{border-color:#405a42;background:#1b281e;color:var(--green)}
+.admin-sidebar .sidebar-super{margin-top:2px;padding-top:12px}
+.crm-section{scroll-margin-top:20px}
+.crm-user-picker{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:12px;padding:17px;border:1px solid var(--line);border-radius:14px;background:var(--panel2)}
+.crm-user-picker button{min-width:125px}
+.crm-user-workspace{display:grid;gap:18px;margin-top:22px}
+.crm-profile-settings{padding:13px 16px;border:1px solid var(--line);border-radius:12px;background:#ffffff03}
+.crm-profile-settings summary{color:#dce8dd}
+.crm-profile-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;align-items:end;gap:12px;margin-top:16px}
+.crm-subsection-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding-top:3px}
+.crm-subsection-head h3,.enrollment-assign h3{margin:4px 0 0}
+.enrollment-card{display:grid;gap:17px;padding:19px;border:1px solid var(--line);border-radius:15px;background:linear-gradient(145deg,#171f1a,#111613)}
+.enrollment-card-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.enrollment-card-heading h4{margin:4px 0 7px;font-size:19px}
+.enrollment-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}
+.enrollment-action-card{display:grid;align-content:start;gap:9px;min-width:0;padding:14px;border:1px solid var(--line);border-radius:12px;background:#ffffff03}
+.enrollment-action-card h5{margin:0;font-size:14px}
+.enrollment-action-card p{min-height:34px;margin:0}
+.enrollment-action-card label{margin:0;font-size:12px}
+.enrollment-action-card input{margin-top:6px}
+.enrollment-action-card button{width:100%;margin-top:3px}
+.enrollment-revoke-card{border-color:#573a36;background:#241816}
+.crm-empty-state{display:flex;align-items:center;gap:14px;padding:18px;border:1px dashed var(--line);border-radius:13px;background:#ffffff03}
+.crm-empty-state>span{font-size:31px}
+.crm-empty-state h4,.crm-empty-state p{margin:0}
+.enrollment-assign{display:grid;grid-template-columns:minmax(170px,.55fr) minmax(0,1.45fr);align-items:center;gap:18px;margin-top:2px;padding:19px;border:1px solid #3b513d;border-radius:14px;background:linear-gradient(110deg,#18251b,#111715)}
+.enrollment-assignment-form{display:grid;grid-template-columns:minmax(0,1fr) 130px auto;align-items:end;gap:11px}
+.enrollment-assignment-form label{margin:0;font-size:13px}
+.enrollment-assignment-form button{white-space:nowrap}
+@media(max-width:1100px){.enrollment-actions{grid-template-columns:repeat(2,minmax(0,1fr))}.enrollment-revoke-card{grid-column:1/-1}.enrollment-revoke-card p{min-height:0}.enrollment-revoke-card button{width:auto;justify-self:start;min-width:160px}}
+@media(max-width:850px){.admin-layout{display:block;padding-top:15px}.admin-sidebar{top:0;z-index:10;display:flex;max-height:none;gap:12px;overflow-x:auto;overflow-y:hidden;margin-bottom:20px;padding:9px;background:var(--panel);box-shadow:0 8px 22px #0005}.admin-sidebar .sidebar-group{display:grid;align-content:start;flex:0 0 auto;gap:2px;padding-right:10px;border-right:1px solid var(--line)}.admin-sidebar .sidebar-label{padding:3px 8px;font-size:10px}.admin-sidebar a{padding:7px 9px;font-size:12px;white-space:nowrap}.admin-sidebar .sidebar-super{margin:0;padding:0 0 0 10px;border-top:0;border-left:0}.crm-profile-form{grid-template-columns:repeat(2,minmax(0,1fr))}.enrollment-assign{grid-template-columns:1fr}.enrollment-assignment-form{grid-template-columns:minmax(0,1fr) 130px auto}}
+@media(max-width:580px){.crm-user-picker{grid-template-columns:1fr}.crm-user-picker button{width:100%}.crm-profile-form{grid-template-columns:1fr}.crm-subsection-head{align-items:flex-start}.enrollment-card{padding:14px}.enrollment-actions{grid-template-columns:1fr}.enrollment-revoke-card{grid-column:auto}.enrollment-revoke-card button{width:100%}.enrollment-action-card p{min-height:0}.enrollment-assignment-form{grid-template-columns:1fr}.enrollment-assignment-form button{width:100%}}
