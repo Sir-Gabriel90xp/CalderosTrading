@@ -101,6 +101,7 @@ export default function SiteNavigation() {
       {authStatus === 'signed-in' ? (
         <>
           <Link href="/comunidad">Comunidad</Link>
+          <Link href="/chat">Chat</Link>
           <Link href="/dashboard">Mi espacio</Link>
           <Link href="/dashboard/pagos">Pagos</Link>
           <Link className="nav-avatar-link" href="/dashboard/perfil" aria-label="Abrir mi perfil" title="Abrir mi perfil">
