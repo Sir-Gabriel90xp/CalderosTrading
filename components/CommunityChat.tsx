@@ -71,6 +71,31 @@ export default function CommunityChat({ userId, displayName, avatarPath, isModer
   const lastTypingSentRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const stickerInputRef = useRef<HTMLInputElement | null>(null);
+  const shellRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const shell = shellRef.current;
+    const page = shell?.closest<HTMLElement>('.chat-page');
+    if (!page) return;
+
+    const viewport = window.visualViewport;
+    const updateAvailableHeight = () => {
+      const headerHeight = document.querySelector<HTMLElement>('.header')?.getBoundingClientRect().height ?? 0;
+      const visibleHeight = viewport?.height ?? window.innerHeight;
+      page.style.setProperty('--chat-available-height', `${Math.max(0, visibleHeight - headerHeight)}px`);
+    };
+
+    updateAvailableHeight();
+    viewport?.addEventListener('resize', updateAvailableHeight);
+    viewport?.addEventListener('scroll', updateAvailableHeight);
+    window.addEventListener('resize', updateAvailableHeight);
+    return () => {
+      viewport?.removeEventListener('resize', updateAvailableHeight);
+      viewport?.removeEventListener('scroll', updateAvailableHeight);
+      window.removeEventListener('resize', updateAvailableHeight);
+      page.style.removeProperty('--chat-available-height');
+    };
+  }, []);
 
   const roomMessages = useMemo(() => messages.filter((message) => message.room === room), [messages, room]);
   const roomMutes = useMemo(() => mutes.filter((mute) => mute.room_scope === room || mute.room_scope === 'all'), [mutes, room]);
@@ -393,7 +418,7 @@ export default function CommunityChat({ userId, displayName, avatarPath, isModer
   const channelStatus = connection === 'online' ? 'Conectado en tiempo real' : connection === 'connecting' ? 'Conectando…' : 'Reconectando…';
 
   return (
-    <section className="community-chat-shell" aria-label="Chats de CalderosTrading">
+    <section ref={shellRef} className="community-chat-shell" aria-label="Chats de CalderosTrading">
       <header className="chat-page-heading">
         <div><span className="eyebrow">Comunidad privada</span><h1>El punto de encuentro</h1><p>Ideas, avances y conversaciones de trading, en vivo.</p></div>
         <Link className="chat-profile-chip" href="/dashboard/perfil" aria-label="Abrir mi perfil">
