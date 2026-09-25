@@ -88,7 +88,18 @@ export default function CourseManager({ courses, canManage, modules = [], lesson
                     </form>
 
                     <div className="stack" style={{ marginTop: 18 }}>
-                      <h4>Módulos del curso</h4>
+                      <div className="course-content-header">
+                        <div>
+                          <h4>Módulos y lecciones</h4>
+                          <p className="tiny">Primero crea un módulo. Luego podrás añadir y editar sus lecciones dentro de este mismo curso.</p>
+                        </div>
+                        <form action={createModule} className="inline-form">
+                          <input type="hidden" name="course_id" value={course.id} />
+                          <input name="title" placeholder="Nombre del módulo" required />
+                          <input name="position" type="number" defaultValue={courseModules.length} min={0} aria-label="Orden del módulo" />
+                          <button type="submit">Agregar módulo</button>
+                        </form>
+                      </div>
                       {courseModules.length ? courseModules.map((module) => {
                         const moduleLessons = lessons.filter((lesson) => lesson.module_id === module.id);
                         return (
@@ -146,12 +157,6 @@ export default function CourseManager({ courses, canManage, modules = [], lesson
                         );
                       }) : <p>No hay módulos creados aún para este curso.</p>}
 
-                      <form action={createModule} style={{ marginTop: 14 }}>
-                        <input type="hidden" name="course_id" value={course.id} />
-                        <label>Título del módulo<input name="title" required /></label>
-                        <label>Orden<input name="position" type="number" defaultValue={0} /></label>
-                        <button type="submit">Agregar módulo</button>
-                      </form>
                     </div>
                   </div>
                 )}
