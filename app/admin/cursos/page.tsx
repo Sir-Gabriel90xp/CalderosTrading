@@ -13,10 +13,11 @@ export default async function AdminCourses({ searchParams }: { searchParams: Sea
   if (!user) redirect('/login?next=/admin/cursos');
   if (!['super_admin', 'admin'].includes(profile?.role || '')) redirect('/dashboard');
 
-  const { data: courses } = await db
-    .from('courses')
-    .select('id,title,slug,description,cover_url,level,price,paypal_usd_price,published')
-    .order('created_at', { ascending: false });
+  const [{ data: courses }, { data: modules }, { data: lessons }] = await Promise.all([
+    db.from('courses').select('id,title,slug,description,cover_url,level,price,paypal_usd_price,published').order('created_at', { ascending: false }),
+    db.from('modules').select('id,course_id,title,position').order('position'),
+    db.from('lessons').select('id,module_id,title,body,video_url,position,published').order('position')
+  ]);
   const error = (await searchParams).error;
   const message = error === 'slug-duplicado'
     ? 'Ese slug ya existe. Usa uno diferente.'
@@ -54,7 +55,7 @@ export default async function AdminCourses({ searchParams }: { searchParams: Sea
           <button type="submit">Crear curso</button>
         </form>
       </section>
-      <CourseManager courses={(courses || []) as never[]} canManage />
+      <CourseManager courses={(courses || []) as never[]} canManage modules={(modules || []) as never[]} lessons={(lessons || []) as never[]} />
     </main>
   );
 }

@@ -68,7 +68,21 @@ export async function deleteCourse(form:FormData){
 export async function createModule(form:FormData){
   const {db,profile}=await staff();if(!['super_admin','admin','instructor'].includes(profile.role))throw new Error('Sin permiso');
   const courseId=z.uuid().parse(val(form,'course_id'));const title=z.string().min(2).max(120).parse(val(form,'title'));
-  const {error}=await db.from('modules').insert({course_id:courseId,title,position:Number(val(form,'position'))||0});if(error)throw new Error(error.message);revalidatePath('/admin');
+  const {error}=await db.from('modules').insert({course_id:courseId,title,position:Number(val(form,'position'))||0});if(error)throw new Error(error.message);revalidatePath('/admin');revalidatePath('/admin/cursos');revalidatePath('/dashboard');revalidatePath('/curso/[slug]','page');
+}
+export async function updateModule(form:FormData){
+  const {db,profile}=await staff();if(!['super_admin','admin','instructor'].includes(profile.role)) redirect('/admin?error=sin-permiso');
+  const moduleId=z.uuid().parse(val(form,'module_id'));const courseId=z.uuid().parse(val(form,'course_id'));const title=z.string().min(2).max(120).parse(val(form,'title'));
+  const {error}=await db.from('modules').update({course_id:courseId,title,position:Number(val(form,'position'))||0}).eq('id',moduleId);
+  if(error) redirect(`/admin?error=${error.code==='42501'?'sin-permiso':'modulo-error'}`);
+  revalidatePath('/admin');revalidatePath('/admin/cursos');revalidatePath('/dashboard');revalidatePath('/curso/[slug]','page');
+}
+export async function deleteModule(form:FormData){
+  const {db,profile}=await staff();if(!['super_admin','admin','instructor'].includes(profile.role)) redirect('/admin?error=sin-permiso');
+  const moduleId=z.uuid().parse(val(form,'module_id'));
+  const {error}=await db.from('modules').delete().eq('id',moduleId);
+  if(error) redirect(`/admin?error=${error.code==='23503'?'modulo-con-datos':'modulo-error'}`);
+  revalidatePath('/admin');revalidatePath('/admin/cursos');revalidatePath('/dashboard');revalidatePath('/curso/[slug]','page');
 }
 export async function createLesson(form:FormData){
   const {db,profile}=await staff();
@@ -79,7 +93,27 @@ export async function createLesson(form:FormData){
   if(!module_id.success || !title.success || (url && !/^https:\/\/(player\.vimeo\.com|iframe\.mux\.com|iframe\.videodelivery\.net|video\.bunnycdn\.com)\//.test(url))) redirect('/admin?error=leccion-datos');
   const {error}=await db.from('lessons').insert({module_id:module_id.data,title:title.data,video_url:url||null,body:val(form,'body'),position:Number(val(form,'position'))||0,published:form.get('published')==='on'});
   if(error) redirect(`/admin?error=${error.code==='42501'?'sin-permiso':'leccion-error'}`);
-  revalidatePath('/admin');revalidatePath('/dashboard');revalidatePath('/cursos');revalidatePath('/curso/[slug]','page');
+  revalidatePath('/admin');revalidatePath('/admin/cursos');revalidatePath('/dashboard');revalidatePath('/cursos');revalidatePath('/curso/[slug]','page');
+}
+export async function updateLesson(form:FormData){
+  const {db,profile}=await staff();
+  if(!profile || !['super_admin','admin','instructor'].includes(profile.role)) redirect('/admin?error=sin-permiso');
+  const lessonId=z.uuid().parse(val(form,'lesson_id'));
+  const moduleId=z.uuid().parse(val(form,'module_id'));
+  const title=z.string().min(2).max(120).parse(val(form,'title'));
+  const url=val(form,'video_url');
+  if(url && !/^https:\/\/(player\.vimeo\.com|iframe\.mux\.com|iframe\.videodelivery\.net|video\.bunnycdn\.com)\//.test(url)) redirect('/admin?error=leccion-datos');
+  const {error}=await db.from('lessons').update({module_id:moduleId,title,video_url:url||null,body:val(form,'body'),position:Number(val(form,'position'))||0,published:form.get('published')==='on'}).eq('id',lessonId);
+  if(error) redirect(`/admin?error=${error.code==='42501'?'sin-permiso':'leccion-error'}`);
+  revalidatePath('/admin');revalidatePath('/admin/cursos');revalidatePath('/dashboard');revalidatePath('/cursos');revalidatePath('/curso/[slug]','page');
+}
+export async function deleteLesson(form:FormData){
+  const {db,profile}=await staff();
+  if(!profile || !['super_admin','admin','instructor'].includes(profile.role)) redirect('/admin?error=sin-permiso');
+  const lessonId=z.uuid().parse(val(form,'lesson_id'));
+  const {error}=await db.from('lessons').delete().eq('id',lessonId);
+  if(error) redirect(`/admin?error=${error.code==='23503'?'leccion-con-datos':'leccion-error'}`);
+  revalidatePath('/admin');revalidatePath('/admin/cursos');revalidatePath('/dashboard');revalidatePath('/cursos');revalidatePath('/curso/[slug]','page');
 }
 export async function grantAccess(form:FormData){
   const {db,profile}=await staff();if(!['super_admin','admin'].includes(profile.role))throw new Error('Sin permiso');
