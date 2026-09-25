@@ -7,6 +7,23 @@ import { serverDb, viewer } from '@/lib/supabase';
 function val(form:FormData,key:string){return String(form.get(key)||'').trim()}
 function safePath(p:string){return p.startsWith('/') && !p.startsWith('//') ? p : '/dashboard'}
 function slugify(value:string){return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')}
+function normalizeVideoUrl(value:string){
+  if(!value)return '';
+  try{
+    const url=new URL(value);
+    if(url.protocol!=='https:')return null;
+    if(url.hostname==='youtu.be'){
+      const id=url.pathname.slice(1).split('/')[0];
+      return id?`https://www.youtube.com/embed/${id}`:null;
+    }
+    if(url.hostname==='www.youtube.com'||url.hostname==='youtube.com'||url.hostname==='m.youtube.com'){
+      const id=url.searchParams.get('v')||url.pathname.match(/^\/(?:shorts|embed)\/([^/?]+)/)?.[1];
+      return id?`https://www.youtube.com/embed/${id}`:null;
+    }
+    if(/^player\.vimeo\.com$|^iframe\.mux\.com$|^iframe\.videodelivery\.net$|^video\.bunnycdn\.com$/.test(url.hostname))return value;
+  }catch{}
+  return null;
+}
 async function staff(){const v=await viewer();if(!v.user||!['super_admin','admin','instructor','support'].includes(v.profile?.role))throw new Error('Sin autorización');return v}
 export async function signIn(form:FormData){
   const db=await serverDb();const email=val(form,'email'),password=val(form,'password');
@@ -103,8 +120,8 @@ export async function createLesson(form:FormData){
   if(!profile || !['super_admin','admin','instructor'].includes(profile.role)) redirect('/admin?error=sin-permiso');
   const module_id=z.uuid().safeParse(val(form,'module_id'));
   const title=z.string().min(2).max(120).safeParse(val(form,'title'));
-  const url=val(form,'video_url');
-  if(!module_id.success || !title.success || (url && !/^https:\/\/(player\.vimeo\.com|iframe\.mux\.com|iframe\.videodelivery\.net|video\.bunnycdn\.com)\//.test(url))) redirect('/admin?error=leccion-datos');
+  const url=normalizeVideoUrl(val(form,'video_url'));
+  if(!module_id.success || !title.success || url===null) redirect('/admin?error=leccion-datos');
   const {error}=await db.from('lessons').insert({module_id:module_id.data,title:title.data,video_url:url||null,body:val(form,'body'),position:Number(val(form,'position'))||0,published:form.get('published')==='on'});
   if(error) redirect(`/admin?error=${error.code==='42501'?'sin-permiso':'leccion-error'}`);
   revalidatePath('/admin');revalidatePath('/admin/cursos');revalidatePath('/dashboard');revalidatePath('/cursos');revalidatePath('/curso/[slug]','page');
@@ -116,8 +133,8 @@ export async function updateLesson(form:FormData){
   const lessonId=z.uuid().parse(val(form,'lesson_id'));
   const moduleId=z.uuid().parse(val(form,'module_id'));
   const title=z.string().min(2).max(120).parse(val(form,'title'));
-  const url=val(form,'video_url');
-  if(url && !/^https:\/\/(player\.vimeo\.com|iframe\.mux\.com|iframe\.videodelivery\.net|video\.bunnycdn\.com)\//.test(url)) redirect('/admin?error=leccion-datos');
+  const url=normalizeVideoUrl(val(form,'video_url'));
+  if(url===null) redirect('/admin?error=leccion-datos');
   const {error}=await db.from('lessons').update({module_id:moduleId,title,video_url:url||null,body:val(form,'body'),position:Number(val(form,'position'))||0,published:form.get('published')==='on'}).eq('id',lessonId);
   if(error) redirect(`/admin?error=${error.code==='42501'?'sin-permiso':'leccion-error'}`);
   revalidatePath('/admin');revalidatePath('/admin/cursos');revalidatePath('/dashboard');revalidatePath('/cursos');revalidatePath('/curso/[slug]','page');

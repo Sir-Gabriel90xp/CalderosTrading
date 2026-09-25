@@ -126,7 +126,7 @@ export default function CourseManager({ courses, canManage, modules = [], lesson
                                     <input type="hidden" name="lesson_id" value={lesson.id} />
                                     <input type="hidden" name="module_id" value={module.id} />
                                     <label>Título<input name="title" defaultValue={lesson.title} required /></label>
-                                    <label>URL del video<input name="video_url" type="url" defaultValue={lesson.video_url ?? ''} placeholder="https://player.vimeo.com/video/..." /></label>
+                                    <label>URL del video<input name="video_url" type="url" defaultValue={lesson.video_url ?? ''} placeholder="YouTube, Vimeo o Mux" /></label>
                                     <label>Contenido<textarea name="body" rows={4} defaultValue={lesson.body} /></label>
                                     <div className="cols">
                                       <label>Orden<input name="position" type="number" defaultValue={lesson.position} /></label>
@@ -144,7 +144,7 @@ export default function CourseManager({ courses, canManage, modules = [], lesson
                               <form action={createLesson}>
                                 <input type="hidden" name="module_id" value={module.id} />
                                 <label>Título<input name="title" required /></label>
-                                <label>URL del video<input name="video_url" type="url" placeholder="https://player.vimeo.com/video/..." /></label>
+                                <label>URL del video<input name="video_url" type="url" placeholder="YouTube, Vimeo o Mux" /></label>
                                 <label>Contenido<textarea name="body" rows={4} /></label>
                                 <div className="cols">
                                   <label>Orden<input name="position" type="number" defaultValue={0} /></label>
