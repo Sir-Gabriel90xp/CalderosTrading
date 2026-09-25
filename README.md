@@ -1,6 +1,6 @@
 # CalderosTrading
 
-Academia privada de trading construida con Next.js, TypeScript y Supabase. Incluye catálogo, registro, inicio de sesión, clases y progreso, panel de administración, CRM básico, solicitudes de transferencia, mensajes, comunidad privada y comprobantes de pago por transferencia o PayPal.
+Academia de trading construida con Next.js, TypeScript y Supabase. Incluye catálogo, registro, inicio de sesión, cursos y progreso, panel de administración, CRM básico, solicitudes de transferencia, mensajes, comunidad de estudiantes con ranking y certificados, y comprobantes de pago por transferencia o PayPal.
 
 ## Puesta en marcha
 
@@ -17,6 +17,8 @@ Academia privada de trading construida con Next.js, TypeScript y Supabase. Inclu
 
 7. Entrar a `/admin`: configurar banco, titular, cuenta, grupo de WhatsApp y enlace de pago de PayPal; crear curso, módulo y lecciones. Cada curso tiene un precio de transferencia en RD$ y un precio PayPal separado en USD. La plataforma no calcula ninguna tasa de cambio automáticamente.
 
+Para una base Supabase ya creada, ejecutar las migraciones pendientes de `supabase/migrations` en orden antes de desplegar los cambios. En particular, `20260925120000_community_profiles_and_certificates.sql` añade las fichas, permisos y buckets privados para perfiles y certificados. No vuelvas a ejecutar `schema.sql` sobre una base existente.
+
 ## Variables
 
 - `NEXT_PUBLIC_SUPABASE_URL`: URL pública del proyecto.
@@ -26,6 +28,8 @@ Academia privada de trading construida con Next.js, TypeScript y Supabase. Inclu
 ## Flujos implementados
 
 - Registro, confirmación de correo, acceso y recuperación mediante Supabase Auth.
+- Perfil comunitario editable con foto, país, descripción, Instagram, cuentas de fondeo y capital declarado en USD. Los perfiles empiezan privados y cada estudiante elige cuándo publicarlos.
+- Ranking de capital y certificados de trading. Los certificados se guardan privados y cada estudiante elige cuáles comparte con la comunidad.
 - Roles estudiante, soporte, instructor, admin y superadmin, verificados en base de datos.
 - Catálogo público y edición de cursos, módulos y clases desde `/admin`.
 - Clases con reproductor embebido de proveedores admitidos, completado de lecciones y acceso que caduca.
