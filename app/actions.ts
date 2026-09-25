@@ -166,6 +166,23 @@ export async function grantAccess(form:FormData){
   revalidatePath('/admin');revalidatePath('/dashboard');revalidatePath('/cursos');
   redirect(`${destination}&success=acceso-actualizado`);
 }
+export async function setEnrollmentDays(form:FormData){
+  const {db,profile}=await staff();
+  if(!profile || !['super_admin','admin'].includes(profile.role)) redirect('/admin?error=sin-permiso');
+  const enrollmentId=z.uuid().safeParse(val(form,'enrollment_id'));
+  const userId=z.uuid().safeParse(val(form,'user_id'));
+  const days=z.number().int().min(1).max(3650).safeParse(Number(val(form,'days')));
+  if(!enrollmentId.success || !userId.success || !days.success) redirect('/admin?error=acceso-datos');
+  const destination=`/admin?user_id=${userId.data}`;
+  const {error}=await db.rpc('admin_set_enrollment_days',{p_enrollment:enrollmentId.data,p_days:days.data});
+  if(error) redirect(`${destination}&error=acceso-error&detail=${encodeURIComponent(error.message.slice(0,180))}`);
+  const {data:enrollment,error:readError}=await db.from('enrollments')
+    .select('status,expires_at,access_code').eq('id',enrollmentId.data).eq('user_id',userId.data).single();
+  if(readError || !enrollment?.access_code || enrollment.status!=='active' || !enrollment.expires_at || new Date(enrollment.expires_at)<=new Date())
+    redirect(`${destination}&error=acceso-no-sincronizado`);
+  revalidatePath('/admin');revalidatePath('/dashboard');revalidatePath('/cursos');
+  redirect(`${destination}&success=estadía-actualizada`);
+}
 export async function revokeAccess(form:FormData){
   const {db,profile}=await staff();
   if(!profile || !['super_admin','admin'].includes(profile.role)) redirect('/admin?error=sin-permiso');
