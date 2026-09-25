@@ -77,7 +77,19 @@ grant usage on schema private to anon, authenticated;
 grant execute on function private.has_role(text[]) to anon, authenticated;
 
 create function private.has_access(p_course uuid) returns boolean language sql stable security definer set search_path = '' as $$
- select exists(select 1 from public.enrollments e where e.user_id=(select auth.uid()) and e.course_id=p_course and e.status='active' and (e.expires_at is null or e.expires_at>now()));
+ select exists(
+   select 1 from public.enrollments e
+   where e.user_id=(select auth.uid())
+     and e.course_id=p_course
+     and e.status='active'
+     and (e.expires_at is null or e.expires_at>now())
+ )
+ or exists(
+   select 1 from public.bank_transfers bt
+   where bt.user_id=(select auth.uid())
+     and bt.course_id=p_course
+     and bt.status='approved'
+ );
 $$;
 revoke all on function private.has_access(uuid) from public, anon;
 grant execute on function private.has_access(uuid) to authenticated;
@@ -105,10 +117,24 @@ create policy courses_enrolled_read on public.courses for select to authenticate
 create policy courses_write on public.courses for all to authenticated using(private.has_role(array['super_admin','admin','instructor'])) with check(private.has_role(array['super_admin','admin','instructor']));
 create policy modules_read on public.modules for select to anon,authenticated using(exists(select 1 from public.courses c where c.id=course_id and (c.published or private.has_role(array['super_admin','admin','instructor','support']))));
 create policy modules_enrolled_read on public.modules for select to authenticated using(private.has_access(course_id));
+create policy modules_anon_preview on public.modules for select to anon using(
+  exists(select 1 from public.courses c where c.id=course_id and c.published=true)
+);
 create policy modules_write on public.modules for all to authenticated using(private.has_role(array['super_admin','admin','instructor'])) with check(private.has_role(array['super_admin','admin','instructor']));
 create policy lessons_read on public.lessons for select to authenticated using(
  private.has_role(array['super_admin','admin','instructor','support']) or
- (published and exists(select 1 from public.modules m where m.id=module_id and (preview or private.has_access(m.course_id))))
+ (
+   published and exists(
+     select 1 from public.modules m
+     where m.id=module_id and (preview or private.has_access(m.course_id))
+   )
+ )
+);
+create policy lessons_read_anon on public.lessons for select to anon using(
+  published and exists(
+    select 1 from public.modules m
+    where m.id=module_id and preview = true
+  )
 );
 create policy lessons_write on public.lessons for all to authenticated using(private.has_role(array['super_admin','admin','instructor'])) with check(private.has_role(array['super_admin','admin','instructor']));
 create policy enrollments_read on public.enrollments for select to authenticated using(user_id=(select auth.uid()) or private.has_role(array['super_admin','admin','support']));
