@@ -1,7 +1,6 @@
 'use client';
 
 import type { FormEvent } from 'react';
-import { useState } from 'react';
 import { createLesson, createModule, deleteCourse, deleteLesson, deleteModule, updateCourse, updateLesson, updateModule } from '@/app/actions';
 
 type Course = {
@@ -33,9 +32,7 @@ type Lesson = {
   published: boolean;
 };
 
-export default function CourseManager({ courses, canManage, modules = [], lessons = [] }: { courses: Course[]; canManage: boolean; modules?: Module[]; lessons?: Lesson[] }) {
-  const [message, setMessage] = useState('');
-
+export default function CourseManager({ courses, canManage, modules = [], lessons = [], returnTo = '/admin' }: { courses: Course[]; canManage: boolean; modules?: Module[]; lessons?: Lesson[]; returnTo?: '/admin' | '/admin/cursos' }) {
   function handleDelete(event: FormEvent<HTMLFormElement>, title: string) {
     if (!window.confirm(`¿Borrar el curso "${title}"? También se borrarán sus módulos y lecciones.`)) {
       event.preventDefault();
@@ -46,7 +43,6 @@ export default function CourseManager({ courses, canManage, modules = [], lesson
     <section id="gestion-cursos" className="card">
       <h2>Gestión de cursos</h2>
       <p>Actualiza los datos, cambia la portada, organiza módulos y edita cada lección del curso.</p>
-      {message && <div className="notice" role="status">{message}</div>}
       <div className="stack">
         {courses.map((course) => {
           const courseModules = modules.filter((module) => module.course_id === course.id);
@@ -70,6 +66,7 @@ export default function CourseManager({ courses, canManage, modules = [], lesson
                   <div className="stack">
                     <form action={updateCourse}>
                       <input type="hidden" name="course_id" value={course.id} />
+                      <input type="hidden" name="return_to" value={returnTo} />
                       <label>Título<input name="title" defaultValue={course.title} required minLength={3} maxLength={120} /></label>
                       <label>Slug<input name="slug" defaultValue={course.slug} placeholder="ejemplo-mi-curso" required /></label>
                       <label>Descripción<textarea name="description" defaultValue={course.description} minLength={10} maxLength={3000} required /></label>
@@ -84,6 +81,7 @@ export default function CourseManager({ courses, canManage, modules = [], lesson
                     </form>
                     <form action={deleteCourse} onSubmit={(event) => handleDelete(event, course.title)}>
                       <input type="hidden" name="course_id" value={course.id} />
+                      <input type="hidden" name="return_to" value={returnTo} />
                       <button type="submit" className="ghost">Borrar curso</button>
                     </form>
 
@@ -95,6 +93,7 @@ export default function CourseManager({ courses, canManage, modules = [], lesson
                         </div>
                         <form action={createModule} className="inline-form">
                           <input type="hidden" name="course_id" value={course.id} />
+                          <input type="hidden" name="return_to" value={returnTo} />
                           <input name="title" placeholder="Nombre del módulo" required />
                           <input name="position" type="number" defaultValue={courseModules.length} min={0} aria-label="Orden del módulo" />
                           <button type="submit">Agregar módulo</button>
@@ -107,6 +106,7 @@ export default function CourseManager({ courses, canManage, modules = [], lesson
                             <form action={updateModule}>
                               <input type="hidden" name="module_id" value={module.id} />
                               <input type="hidden" name="course_id" value={course.id} />
+                              <input type="hidden" name="return_to" value={returnTo} />
                               <div className="cols">
                                 <label>Título<input name="title" defaultValue={module.title} required /></label>
                                 <label>Orden<input name="position" type="number" defaultValue={module.position} /></label>
@@ -115,6 +115,7 @@ export default function CourseManager({ courses, canManage, modules = [], lesson
                             </form>
                             <form action={deleteModule} style={{ marginTop: 8 }}>
                               <input type="hidden" name="module_id" value={module.id} />
+                              <input type="hidden" name="return_to" value={returnTo} />
                               <button type="submit" className="ghost">Eliminar módulo</button>
                             </form>
 
@@ -125,6 +126,7 @@ export default function CourseManager({ courses, canManage, modules = [], lesson
                                   <form action={updateLesson}>
                                     <input type="hidden" name="lesson_id" value={lesson.id} />
                                     <input type="hidden" name="module_id" value={module.id} />
+                                    <input type="hidden" name="return_to" value={returnTo} />
                                     <label>Título<input name="title" defaultValue={lesson.title} required /></label>
                                     <label>URL del video<input name="video_url" type="url" defaultValue={lesson.video_url ?? ''} placeholder="YouTube, Vimeo o Mux" /></label>
                                     <label>Contenido<textarea name="body" rows={4} defaultValue={lesson.body} /></label>
@@ -136,6 +138,7 @@ export default function CourseManager({ courses, canManage, modules = [], lesson
                                   </form>
                                   <form action={deleteLesson} style={{ marginTop: 8 }}>
                                     <input type="hidden" name="lesson_id" value={lesson.id} />
+                                    <input type="hidden" name="return_to" value={returnTo} />
                                     <button type="submit" className="ghost">Eliminar lección</button>
                                   </form>
                                 </div>
@@ -143,6 +146,7 @@ export default function CourseManager({ courses, canManage, modules = [], lesson
 
                               <form action={createLesson}>
                                 <input type="hidden" name="module_id" value={module.id} />
+                                <input type="hidden" name="return_to" value={returnTo} />
                                 <label>Título<input name="title" required /></label>
                                 <label>URL del video<input name="video_url" type="url" placeholder="YouTube, Vimeo o Mux" /></label>
                                 <label>Contenido<textarea name="body" rows={4} /></label>
