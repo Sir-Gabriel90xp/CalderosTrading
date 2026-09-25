@@ -216,9 +216,11 @@ export async function sendMessage(form:FormData){
 }
 export async function saveSettings(form:FormData){
  const {db,profile}=await staff();if(!['super_admin','admin'].includes(profile.role))throw new Error('Sin permiso');
- const keys=['bank_name','bank_account','bank_holder','whatsapp_group'];
+ const keys=['bank_name','bank_account','bank_holder','whatsapp_group','paypal_payment_link'];
  const rows=keys.map(key=>({key,value:val(form,key)}));const group=rows.find(r=>r.key==='whatsapp_group')?.value;
  if(group && !/^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9]+$/.test(group))throw new Error('Enlace de grupo no válido');
+ const paypalLink=rows.find(r=>r.key==='paypal_payment_link')?.value;
+ if(paypalLink){try{const url=new URL(paypalLink);if(url.protocol!=='https:'||!['paypal.me','www.paypal.com','paypal.com'].includes(url.hostname))throw new Error();}catch{throw new Error('Usa un enlace seguro de PayPal (paypal.me o paypal.com).');}}
  const {error}=await db.from('settings').upsert(rows);if(error)throw new Error(error.message);revalidatePath('/admin');revalidatePath('/dashboard');
 }
 
