@@ -1,1 +1,0 @@
-import CapturePayment from '@/components/CapturePayment';export default function Return(){return <main className="shell"><div className="auth-card"><h1>Confirmando pago</h1><CapturePayment/></div></main>}
