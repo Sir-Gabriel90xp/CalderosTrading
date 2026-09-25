@@ -12,6 +12,7 @@ type CommunityProfile = {
   funded_accounts_count: number;
   trading_capital_usd: number;
   avatar_path: string | null;
+  banner_path: string | null;
   is_public: boolean;
 };
 
@@ -62,15 +63,18 @@ export default function CommunityProfileEditor({
   userId,
   initialProfile,
   initialAvatarUrl,
+  initialBannerUrl,
   initialCertificates,
 }: {
   userId: string;
   initialProfile: CommunityProfile;
   initialAvatarUrl: string | null;
+  initialBannerUrl: string | null;
   initialCertificates: Certificate[];
 }) {
   const [profile, setProfile] = useState(initialProfile);
   const [avatarUrl, setAvatarUrl] = useState(initialAvatarUrl);
+  const [bannerUrl, setBannerUrl] = useState(initialBannerUrl);
   const [certificates, setCertificates] = useState(initialCertificates);
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -121,6 +125,40 @@ export default function CommunityProfileEditor({
     event.target.value = '';
   }
 
+  async function uploadBanner(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+      setNotice('Elige un banner JPG, PNG o WebP de máximo 5 MB.');
+      return;
+    }
+    setBusy(true);
+    setNotice('');
+    const db = browserDb();
+    const extension = file.type === 'image/jpeg' ? 'jpg' : file.type.split('/')[1];
+    const path = `${userId}/banner/${crypto.randomUUID()}.${extension}`;
+    const { error: uploadError } = await db.storage.from('community-media').upload(path, file, { contentType: file.type, upsert: false });
+    if (uploadError) {
+      setNotice(`No se pudo subir el banner: ${uploadError.message}`);
+      setBusy(false);
+      return;
+    }
+    const { error } = await db.from('community_profiles').upsert({ user_id: userId, banner_path: path }, { onConflict: 'user_id' });
+    if (error) {
+      await db.storage.from('community-media').remove([path]);
+      setNotice(`No se pudo guardar el banner: ${error.message}`);
+      setBusy(false);
+      return;
+    }
+    if (profile.banner_path && profile.banner_path !== path) await db.storage.from('community-media').remove([profile.banner_path]);
+    const { data } = await db.storage.from('community-media').createSignedUrl(path, 3600);
+    setBannerUrl(data?.signedUrl || null);
+    setProfile((current) => ({ ...current, banner_path: path }));
+    setNotice('Banner actualizado.');
+    setBusy(false);
+  }
+
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
@@ -157,6 +195,7 @@ export default function CommunityProfileEditor({
       funded_accounts_count: accounts,
       trading_capital_usd: capital,
       avatar_path: profile.avatar_path,
+      banner_path: profile.banner_path,
       is_public: isPublic,
       updated_at: new Date().toISOString(),
     };
@@ -256,12 +295,17 @@ export default function CommunityProfileEditor({
           </div>
         </div>
 
+        <div className="profile-banner-editor" style={bannerUrl ? { backgroundImage: `linear-gradient(90deg,#07100bd9,#07100b38),url("${bannerUrl}")` } : undefined}>
+          <div><span className="eyebrow">PORTADA DE TU PERFIL</span><strong>Un vistazo a tu camino</strong><small>JPG, PNG o WebP · máximo 5 MB</small></div>
+          <label className="button ghost avatar-pick">{busy ? 'Procesando…' : bannerUrl ? 'Cambiar banner' : 'Agregar banner'}<input type="file" accept="image/png,image/jpeg,image/webp" onChange={uploadBanner} disabled={busy} /></label>
+        </div>
+
         <form onSubmit={saveProfile} className="profile-form">
           <label>Nombre público<input name="display_name" defaultValue={profile.display_name} placeholder="Cómo quieres que te conozcan" maxLength={80} required /></label>
           <label>País<select name="country" defaultValue={profile.country}><option value="">Elige tu país</option>{countries.map(([code, label]) => <option key={code} value={label.replace(/^\S+\s/, '')}>{label}</option>)}</select></label>
           <label>Cuentas de fondeo<input name="funded_accounts_count" type="number" min="0" max="100" step="1" defaultValue={profile.funded_accounts_count} /></label>
           <label>Capital fondeado en USD<input name="trading_capital_usd" type="number" min="0" max="999999999999" step="0.01" defaultValue={profile.trading_capital_usd} /><small>Usamos USD para que el ranking compare el capital en una sola moneda.</small></label>
-          <label className="profile-full-row">Descripción<textarea name="bio" defaultValue={profile.bio} maxLength={600} rows={5} placeholder="Cuéntales a los demás qué operas, qué estás aprendiendo o cuál es tu meta." /></label>
+          <label className="profile-full-row">Tu historia<textarea name="bio" defaultValue={profile.bio} maxLength={600} rows={5} placeholder="Cuéntales a los demás cómo empezaste, qué estás aprendiendo o cuál es tu meta." /><small>Se mostrará en tu perfil público si activas la visibilidad.</small></label>
           <label className="profile-full-row">Instagram<input name="instagram" defaultValue={profile.instagram_url || ''} placeholder="@tuusuario o https://instagram.com/tuusuario" maxLength={200} /></label>
           <label className="profile-visibility profile-full-row"><input type="checkbox" name="is_public" defaultChecked={profile.is_public} /><span><strong>Mostrar mi perfil en Comunidad</strong><small>Si lo activas, los demás verán tu nombre, país, descripción, cuentas de fondeo, capital, foto, Instagram y certificados que marques como compartidos.</small></span></label>
           <div className="profile-full-row profile-form-footer"><span className="meta">El capital y las cuentas solo se muestran si publicas tu perfil.</span><button disabled={saving || busy}>{saving ? 'Guardando…' : 'Guardar perfil'}</button></div>

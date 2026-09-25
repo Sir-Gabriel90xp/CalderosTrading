@@ -15,6 +15,7 @@ export default function SiteNavigation() {
   const [authStatus, setAuthStatus] = useState<AuthStatus>('loading');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarInitial, setAvatarInitial] = useState('T');
+  const [profileUserId, setProfileUserId] = useState('');
   const [feedback, setFeedback] = useState('');
 
   useEffect(() => {
@@ -27,6 +28,7 @@ export default function SiteNavigation() {
     let mounted = true;
 
     async function loadAvatar(user: User) {
+      setProfileUserId(user.id);
       try {
         const { data } = await db.from('community_profiles')
           .select('display_name,avatar_path')
@@ -56,6 +58,7 @@ export default function SiteNavigation() {
       } else {
         setAvatarUrl(null);
         setAvatarInitial('T');
+        setProfileUserId('');
       }
       if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') router.refresh();
     });
@@ -104,7 +107,7 @@ export default function SiteNavigation() {
           <Link href="/chat">Chat</Link>
           <Link href="/dashboard">Mi espacio</Link>
           <Link href="/dashboard/pagos">Pagos</Link>
-          <Link className="nav-avatar-link" href="/dashboard/perfil" aria-label="Abrir mi perfil" title="Abrir mi perfil">
+          <Link className="nav-avatar-link" href={profileUserId ? `/comunidad/${profileUserId}` : '/dashboard/perfil'} aria-label="Abrir mi perfil" title="Abrir mi perfil">
             <span className="nav-avatar">{avatarUrl ? <Image unoptimized src={avatarUrl} width={40} height={40} alt="" /> : <b>{avatarInitial}</b>}</span>
           </Link>
           <button type="button" className="ghost nav-sign-out" onClick={signOut}>Salir</button>

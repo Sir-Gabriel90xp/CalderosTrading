@@ -21,6 +21,10 @@ export default async function ChatPage() {
   const hasPerpetualAccess = vipEnrollments.some((item) => !item.expires_at);
   const vipAccessUntil = hasPerpetualAccess ? null : vipEnrollments.reduce<string | null>((latest, item) => !latest || new Date(item.expires_at!).getTime() > new Date(latest).getTime() ? item.expires_at : latest, null);
   const muteIds = [...new Set((muteRows || []).map((item) => item.user_id))];
+  const messageIds = (initialMessages || []).map((item) => item.id);
+  const { data: initialReactions } = messageIds.length
+    ? await db.from('chat_message_reactions').select('message_id,user_id,emoji').in('message_id', messageIds)
+    : { data: [] };
   const { data: mutedProfiles } = isModerator && muteIds.length
     ? await db.from('community_profiles').select('user_id,display_name').in('user_id', muteIds)
     : { data: [] };
@@ -38,6 +42,7 @@ export default async function ChatPage() {
         vipAccessUntil={isModerator ? null : vipAccessUntil}
         initialMessages={(initialMessages || []).reverse()}
         initialMutes={initialMutes}
+        initialReactions={initialReactions || []}
       />
     </main>
   );
