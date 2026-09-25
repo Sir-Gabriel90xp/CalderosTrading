@@ -23,6 +23,17 @@ export async function resetPassword(form:FormData){
   const db=await serverDb();await db.auth.resetPasswordForEmail(val(form,'email'),{redirectTo:`${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/update-password`});redirect('/login?reset=1');
 }
 export async function signOut(){const db=await serverDb();await db.auth.signOut();redirect('/')}
+export async function updateProfile(form:FormData){
+  const {db,profile}=await staff();
+  if(!profile || !['super_admin','admin'].includes(profile.role)) redirect('/admin?error=sin-permiso');
+  const userId=z.uuid().parse(val(form,'user_id'));
+  const full_name=z.string().min(1).max(120).parse(val(form,'full_name'));
+  const phone=val(form,'phone');
+  const role=z.enum(['student','support','instructor','admin','super_admin']).parse(val(form,'role'));
+  const {error}=await db.from('profiles').update({full_name,phone:phone||null,role}).eq('id',userId);
+  if(error) redirect(`/admin?error=${error.code==='42501'?'sin-permiso':'perfil-error'}`);
+  revalidatePath('/admin');revalidatePath('/dashboard');
+}
 export async function createCourse(form:FormData){
     const {db,profile}=await staff();
     if(!profile || !['super_admin','admin','instructor'].includes(profile.role)) redirect('/admin?error=sin-permiso');
