@@ -68,10 +68,10 @@ export default function CourseManager({ courses, canManage, modules = [], lesson
                 </div>
                 {canManage && (
                   <div className="stack">
-                    <form action={updateCourse}>
+                    <form action={updateCourse} encType="multipart/form-data">
                       <input type="hidden" name="course_id" value={course.id} />
                       <label>Título<input name="title" defaultValue={course.title} required minLength={3} maxLength={120} /></label>
-                      <label>Slug<input name="slug" defaultValue={course.slug} pattern="[a-z0-9-]+" required /></label>
+                      <label>Slug<input name="slug" defaultValue={course.slug} placeholder="ejemplo-mi-curso" required /></label>
                       <label>Descripción<textarea name="description" defaultValue={course.description} minLength={10} maxLength={3000} required /></label>
                       <div className="cols">
                         <label>Precio RD$<input name="price" type="number" defaultValue={course.price} min="0" step="0.01" required /></label>
