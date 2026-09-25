@@ -108,6 +108,7 @@ export async function createLesson(form:FormData){
   const {error}=await db.from('lessons').insert({module_id:module_id.data,title:title.data,video_url:url||null,body:val(form,'body'),position:Number(val(form,'position'))||0,published:form.get('published')==='on'});
   if(error) redirect(`/admin?error=${error.code==='42501'?'sin-permiso':'leccion-error'}`);
   revalidatePath('/admin');revalidatePath('/admin/cursos');revalidatePath('/dashboard');revalidatePath('/cursos');revalidatePath('/curso/[slug]','page');
+  redirect('/admin?success=leccion-creada');
 }
 export async function updateLesson(form:FormData){
   const {db,profile}=await staff();
