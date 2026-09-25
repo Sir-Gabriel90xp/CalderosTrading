@@ -12,8 +12,8 @@ export async function serverDb() {
   });
 }
 export function adminDb() {
-  const secret=process.env.SUPABASE_SECRET_KEY;
-  if(!secret)throw new Error('Falta SUPABASE_SECRET_KEY en el servidor');
+  const secret=process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if(!secret)return null;
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,secret,{auth:{autoRefreshToken:false,persistSession:false}});
 }
 export async function viewer() {
