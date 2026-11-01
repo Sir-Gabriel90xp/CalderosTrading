@@ -2194,3 +2194,13 @@ html[data-theme="light"] .brand-card {
     scroll-behavior: auto !important;
   }
 }
+
+@media (max-width: 760px) {
+  .equity-chart text {
+    font-size: 18px;
+  }
+  .hero-art {
+    opacity: 0.22;
+    right: -9%;
+  }
+}
